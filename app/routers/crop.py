@@ -627,8 +627,70 @@ async def analyze_pdf(
 
         expected_q_nums = await asyncio.to_thread(_expected_from_answer_key)
 
-        items = build_analyzed_items(detected)
-        notes = build_review_notes(detected, method_used, expected_q_nums or None)
+        # Per-page text-line extents (page-percent units) for the content-
+        # coverage review check: a normal-looking crop that stopped short leaves
+        # its own body text uncovered below it, which shape heuristics can't see.
+        # Only meaningful for searchable PDFs; scanned papers extract nothing
+        # here and the check simply stays disabled.
+        def _page_text_lines() -> "dict[int, list[tuple[float, float, float, float]]]":
+            out: dict[int, list[tuple[float, float, float, float]]] = {}
+            try:
+                with fitz.open(stream=file_bytes, filetype="pdf") as doc:
+                    for idx in range(doc.page_count):
+                        page_no = idx + 1
+                        if in_scope_pages and page_no not in in_scope_pages:
+                            continue
+                        page = doc.load_page(idx)
+                        rect = page.rect
+                        pw, ph = float(rect.width), float(rect.height)
+                        if pw <= 0 or ph <= 0:
+                            continue
+                        lines: list[tuple[float, float, float, float]] = []
+                        data = page.get_text("dict") or {}
+                        for block in data.get("blocks", []):
+                            for ln in block.get("lines", []):
+                                spans = ln.get("spans", [])
+                                if not spans:
+                                    continue
+                                if not any((s.get("text") or "").strip() for s in spans):
+                                    continue
+                                x0, y0, x1, y1 = ln.get("bbox", (0, 0, 0, 0))
+                                lines.append(
+                                    (
+                                        (y0 / ph) * 100.0,
+                                        (y1 / ph) * 100.0,
+                                        (x0 / pw) * 100.0,
+                                        (x1 / pw) * 100.0,
+                                    )
+                                )
+                        if lines:
+                            out[page_no] = lines
+            except Exception:
+                return {}
+            return out
+
+        page_lines = await asyncio.to_thread(_page_text_lines)
+
+        # Fallback for scanned PDFs: the page text layer is empty, so the loop
+        # above yields nothing and the coverage check would silently do nothing.
+        # The OCR tier, however, already reconstructed every text line during
+        # detection (in page-percent units), so reuse those whenever the text
+        # layer gave us no lines for a page. This is what makes the cut-off /
+        # under-coverage detection actually fire on image-based papers.
+        ocr_lines = getattr(
+            getattr(pipeline, "ocr_detector", None), "page_lines_pct", None
+        )
+        if ocr_lines:
+            for page_no, lines in ocr_lines.items():
+                if in_scope_pages and page_no not in in_scope_pages:
+                    continue
+                if not page_lines.get(page_no) and lines:
+                    page_lines[page_no] = list(lines)
+
+        items = build_analyzed_items(detected, page_lines or None)
+        notes = build_review_notes(
+            detected, method_used, expected_q_nums or None, page_lines or None
+        )
         needs_review = bool(notes) or any(it.flagged for it in items)
 
         logger.info(

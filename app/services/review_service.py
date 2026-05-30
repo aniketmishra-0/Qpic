@@ -21,7 +21,7 @@ import re
 from statistics import median
 from typing import Iterable
 
-from ..models.schemas import AnalyzedItem, DetectedQuestion, ReviewNote
+from ..models.schemas import AnalyzedItem, DetectedQuestion, QuestionSegment, ReviewNote
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +58,18 @@ _TINY_EXTENT_PCT = 4.0
 # (questions vs solutions) is probably cut off — its neighbours are all much
 # taller, so it likely lost its options or its lower half.
 _SHORT_VS_MEDIAN_FRAC = 0.45
+
+# A crop *taller* than this multiple of the median on its side is the opposite
+# problem: it probably swallowed its neighbour (two questions merged into one
+# box, or a crop that ran past its own end into the next item). Tall outliers
+# are just as suspicious as short ones — they were simply never checked before,
+# which is why an over-grown item could slip through unflagged.
+_TALL_VS_MEDIAN_FRAC = 1.9
+
+# ...but only once the crop is genuinely large in absolute terms. In a paper of
+# small crops (median ~6%) a normal 12% question is 2x the median yet perfectly
+# fine, so we don't want to cry "merged" on it. A real two-question merge is big.
+_TALL_MIN_EXTENT_PCT = 45.0
 
 # A single-segment crop whose bottom sits at/below this % of the page height
 # very likely continues onto the next page (it was cut at the page edge and not
@@ -97,6 +109,190 @@ def _ends_at_page_bottom(item: DetectedQuestion | AnalyzedItem) -> bool:
 def _median_extent(detected: Iterable[DetectedQuestion], is_solution: bool) -> float:
     vals = [_extent_pct(q) for q in detected if bool(q.is_solution) == is_solution]
     return float(median(vals)) if vals else 0.0
+
+
+# Two crops on the same side that physically overlap on the page are a strong,
+# content-free sign something went wrong: one box ran into its neighbour, so the
+# shared strip belongs to two items at once. Either crop can look perfectly
+# normal in height (so the short/tall checks miss it) yet still be wrong — this
+# is the "looks fine but isn't" case. We only count a *meaningful* overlap to
+# avoid flagging crops that merely touch at a 1px boundary.
+_OVERLAP_MIN_PCT = 6.0
+
+
+def _segments_overlap(
+    a: QuestionSegment, b: QuestionSegment, min_pct: float = _OVERLAP_MIN_PCT
+) -> bool:
+    """True if two segments share the same page and a real 2-D overlap."""
+
+    if a.page != b.page:
+        return False
+    # Horizontal overlap (columns): needed so a 2-up layout's left/right
+    # questions aren't treated as overlapping just because their rows line up.
+    x_overlap = min(a.x_end_pct, b.x_end_pct) - max(a.x_start_pct, b.x_start_pct)
+    if x_overlap <= 0:
+        return False
+    y_overlap = min(a.y_end_pct, b.y_end_pct) - max(a.y_start_pct, b.y_start_pct)
+    return y_overlap >= min_pct
+
+
+def find_overlapping_q_nums(
+    detected: Iterable[DetectedQuestion],
+) -> set[tuple[bool, str]]:
+    """Return ``(is_solution, q_num)`` keys for items that overlap a sibling.
+
+    Questions and solutions are checked independently — a question crop sitting
+    over a solution crop on a mixed page is expected and not an error.
+    """
+
+    items = list(detected)
+    overlapping: set[tuple[bool, str]] = set()
+    for i in range(len(items)):
+        for j in range(i + 1, len(items)):
+            a, b = items[i], items[j]
+            if bool(a.is_solution) != bool(b.is_solution):
+                continue
+            if any(_segments_overlap(sa, sb) for sa in a.segments for sb in b.segments):
+                overlapping.add((bool(a.is_solution), a.q_num))
+                overlapping.add((bool(b.is_solution), b.q_num))
+    return overlapping
+
+
+# --- Content-coverage check --------------------------------------------------
+#
+# The strongest "looks fine but isn't" signal is content-based, not shape-based:
+# a crop can be a perfectly normal-looking box yet still stop short, leaving a
+# block of the item's own body text *below* it that no crop covers at all (the
+# classic half-cropped solution). Shape heuristics (too-short, too-tall,
+# overlap) all miss this because the box itself looks ordinary. So we look at the
+# page's actual text lines and check every line is covered by some crop; a tall
+# band of uncovered lines sitting directly beneath a crop means that crop was
+# cut off and should be re-selected.
+
+# A ``ContentLine`` for coverage purposes: vertical + horizontal extent of one
+# text line on a page, all in page-percentage units.
+#   (y_top_pct, y_bottom_pct, x_left_pct, x_right_pct)
+PageLines = dict  # type alias hint: dict[int, list[tuple[float, float, float, float]]]
+
+# Vertical slack (in % of page height) when deciding whether a crop already
+# covers a line — a line whose centre sits within this much of a crop edge
+# counts as covered, absorbing tiny rounding between detection and rendering.
+_COVER_Y_PAD = 1.5
+
+# Total height of uncovered body text directly below a crop before we call that
+# crop cut-off. A couple of stray lines (a footer the crop intentionally
+# excluded) stay quiet; a real lost half is a tall run.
+_UNCOVERED_MIN_BAND_PCT = 8.0
+
+# Ignore lines in the top/bottom margins entirely — running headers/footers and
+# page numbers live there and are deliberately never cropped.
+_BODY_TOP_PCT = 6.0
+_BODY_BOTTOM_PCT = 94.0
+
+# If the gap between a crop's bottom and the first uncovered line is larger than
+# this, the uncovered text is more likely a separately *missed* item (a gap,
+# handled by numbering) than the crop's own lost tail, so we don't blame the
+# crop above.
+_UNCOVERED_MAX_GAP_PCT = 14.0
+
+
+def _line_center_x(line: tuple[float, float, float, float]) -> float:
+    return (line[2] + line[3]) / 2.0
+
+
+def _seg_covers_line(
+    seg: QuestionSegment, line: tuple[float, float, float, float]
+) -> bool:
+    """True if a crop segment vertically + horizontally contains a text line."""
+
+    cx = _line_center_x(line)
+    if not (seg.x_start_pct <= cx <= seg.x_end_pct):
+        return False
+    cy = (line[0] + line[1]) / 2.0
+    return (seg.y_start_pct - _COVER_Y_PAD) <= cy <= (seg.y_end_pct + _COVER_Y_PAD)
+
+
+def find_undercovered_items(
+    detected: Iterable[DetectedQuestion],
+    page_lines: "dict[int, list[tuple[float, float, float, float]]] | None",
+) -> set[tuple[bool, str]]:
+    """Flag crops with a tall band of their own body text left uncovered below.
+
+    For each crop segment we look at the strip directly beneath it in its own
+    column, down to wherever the next crop in that column begins (or the body
+    bottom). Any text lines in that strip that no crop covers are the crop's lost
+    tail. When that uncovered run starts close under the crop (so it isn't a
+    separately *missed* item sitting lower down) and is taller than
+    :data:`_UNCOVERED_MIN_BAND_PCT`, the crop was almost certainly cut off and we
+    return its ``(is_solution, q_num)``.
+
+    ``page_lines`` being None/empty (e.g. a scanned PDF whose lines we didn't
+    extract) disables the check entirely.
+    """
+
+    if not page_lines:
+        return set()
+
+    items = list(detected)
+
+    # All segments per page, tagged with the owning item key.
+    segs_by_page: dict[int, list[tuple[tuple[bool, str], QuestionSegment]]] = {}
+    for q in items:
+        key = (bool(q.is_solution), q.q_num)
+        for seg in q.segments:
+            segs_by_page.setdefault(seg.page, []).append((key, seg))
+
+    flagged: set[tuple[bool, str]] = set()
+
+    for page, segs in segs_by_page.items():
+        lines = page_lines.get(page)
+        if not lines:
+            continue
+
+        for owner_key, owner in segs:
+            cx_lo, cx_hi = owner.x_start_pct, owner.x_end_pct
+
+            # Where the owner's column ends below it: the nearest crop in the
+            # same column that starts beneath the owner, else the body bottom.
+            region_bottom = _BODY_BOTTOM_PCT
+            for k, s in segs:
+                if k == owner_key:
+                    continue
+                scx = (s.x_start_pct + s.x_end_pct) / 2.0
+                if cx_lo <= scx <= cx_hi and s.y_start_pct >= owner.y_end_pct:
+                    region_bottom = min(region_bottom, s.y_start_pct)
+
+            # Uncovered lines in the strip below the owner, within its column.
+            tail: list[tuple[float, float]] = []
+            for line in lines:
+                top, bottom = line[0], line[1]
+                cx = _line_center_x(line)
+                cy = (top + bottom) / 2.0
+                if not (cx_lo <= cx <= cx_hi):
+                    continue
+                if cy <= owner.y_end_pct or cy < _BODY_TOP_PCT:
+                    continue
+                if cy > region_bottom:
+                    continue
+                if any(_seg_covers_line(s, line) for _, s in segs):
+                    continue
+                tail.append((top, bottom))
+
+            if not tail:
+                continue
+
+            tail.sort()
+            # The lost tail must begin close under the crop; text starting far
+            # below is a separately missed item (a numbering gap), not this
+            # crop's cut-off.
+            if (tail[0][0] - owner.y_end_pct) > _UNCOVERED_MAX_GAP_PCT:
+                continue
+
+            band = sum(b - t for t, b in tail)
+            if band >= _UNCOVERED_MIN_BAND_PCT:
+                flagged.add(owner_key)
+
+    return flagged
 
 
 def drop_phantom_numbers(
@@ -173,6 +369,15 @@ def _cutoff_reason(
     ):
         return "Looks shorter than the other items — it may be only half the question. Re-select the full region."
 
+    # Much taller than its neighbours AND large in absolute terms -> likely two
+    # items merged into one box (or a crop that overran into the next question).
+    if (
+        median_extent > 0
+        and extent > _TALL_VS_MEDIAN_FRAC * median_extent
+        and extent >= _TALL_MIN_EXTENT_PCT
+    ):
+        return "Looks taller than the other items — it may have merged with the next question. Re-select just this one."
+
     # Absolute floor for the lonely-item case.
     if extent < _TINY_EXTENT_PCT:
         return "Crop is very small — it may be missing the question body. Re-select the full region."
@@ -205,18 +410,30 @@ def _missing_options_reason(item: DetectedQuestion | AnalyzedItem) -> str | None
     return None
 
 
-def build_analyzed_items(detected: Iterable[DetectedQuestion]) -> list[AnalyzedItem]:
+def build_analyzed_items(
+    detected: Iterable[DetectedQuestion],
+    page_lines: "dict[int, list[tuple[float, float, float, float]]] | None" = None,
+) -> list[AnalyzedItem]:
     """Wrap raw detections as review items, flagging the suspicious ones.
 
     Flags applied here (per-item):
       * ``cutoff``     — crop looks like only part of the question (half /
-        continues onto the next page / lost its options).
+        continues onto the next page / lost its options / has a tall band of its
+        own body text left uncovered below it).
+      * ``overlap``    — crop physically overlaps another item on the page.
       * ``duplicate``  — same (is_solution, number) as an earlier item.
+
+    ``page_lines`` maps a page number to the text lines on it
+    ``(y_top, y_bottom, x_left, x_right)`` in page-percent units. When supplied
+    it powers the content-coverage check (the strongest cut-off signal); when
+    omitted only the shape-based checks run.
     """
 
     detected = list(detected)
     median_q = _median_extent(detected, is_solution=False)
     median_s = _median_extent(detected, is_solution=True)
+    overlapping = find_overlapping_q_nums(detected)
+    undercovered = find_undercovered_items(detected, page_lines)
 
     items: list[AnalyzedItem] = []
     seen: set[tuple[bool, int | None]] = set()
@@ -236,6 +453,18 @@ def build_analyzed_items(detected: Iterable[DetectedQuestion]) -> list[AnalyzedI
             if cut is not None:
                 flagged = True
                 reason = cut
+            elif (bool(q.is_solution), q.q_num) in undercovered:
+                flagged = True
+                reason = (
+                    "Text below this crop isn't covered by any box — the crop "
+                    "may have stopped early. Re-select the full region."
+                )
+            elif (bool(q.is_solution), q.q_num) in overlapping:
+                flagged = True
+                reason = (
+                    "Overlaps another item on the page — the crops may share "
+                    "content. Re-select so each box covers only its own item."
+                )
             else:
                 # MCQ-aware check: some but not all four options captured.
                 opt = _missing_options_reason(q)
@@ -262,6 +491,7 @@ def build_review_notes(
     detected: list[DetectedQuestion],
     method_used: str,
     expected_question_numbers: "set[int] | None" = None,
+    page_lines: "dict[int, list[tuple[float, float, float, float]]] | None" = None,
 ) -> list[ReviewNote]:
     """Produce human-readable review notes (cut-off crops, duplicates, gaps).
 
@@ -272,12 +502,18 @@ def build_review_notes(
     Any of those numbers missing from the detected questions is reported as a
     high-confidence gap — the key *proves* the question exists — which is
     stronger than the sequence-based guess below.
+
+    ``page_lines`` (page -> text-line extents in page-percent) powers the
+    content-coverage check that catches a normal-looking crop which stopped
+    short, leaving its own body text uncovered below it.
     """
 
     notes: list[ReviewNote] = []
 
     median_q = _median_extent(detected, is_solution=False)
     median_s = _median_extent(detected, is_solution=True)
+    overlapping = find_overlapping_q_nums(detected)
+    undercovered = find_undercovered_items(detected, page_lines)
 
     # Split questions vs solutions; numbering continuity is judged per side.
     for is_solution in (False, True):
@@ -296,6 +532,34 @@ def build_review_notes(
                     ReviewNote(
                         kind="incomplete",
                         message=f"{label_one} {q.q_num}: {cut}",
+                        q_num=q.q_num,
+                        page=_primary_page(q),
+                        is_solution=is_solution,
+                    )
+                )
+            elif (is_solution, q.q_num) in undercovered:
+                notes.append(
+                    ReviewNote(
+                        kind="incomplete",
+                        message=(
+                            f"{label_one} {q.q_num}: Text below this crop isn't "
+                            "covered by any box — the crop may have stopped early. "
+                            "Re-select the full region."
+                        ),
+                        q_num=q.q_num,
+                        page=_primary_page(q),
+                        is_solution=is_solution,
+                    )
+                )
+            elif (is_solution, q.q_num) in overlapping:
+                notes.append(
+                    ReviewNote(
+                        kind="incomplete",
+                        message=(
+                            f"{label_one} {q.q_num}: Overlaps another item on the "
+                            "page — the crops may share content. Re-select so each "
+                            "box covers only its own item."
+                        ),
                         q_num=q.q_num,
                         page=_primary_page(q),
                         is_solution=is_solution,

@@ -47,6 +47,15 @@ class Settings(BaseSettings):
     MIN_QUESTIONS_PER_2_PAGES: float = 0.5
     QUESTION_PADDING_PX: int = 20
 
+    # Languages passed to Tesseract OCR. Combine multiple with "+" so a paper in
+    # either script is read correctly — "eng+hin" reads both English and Hindi
+    # (Devanagari). This matters a lot: with the wrong/มissing language Tesseract
+    # can't recognise the body text, so a question's crop is built from only the
+    # few lines it did read and stops short (the classic half-crop). Languages
+    # that aren't actually installed are dropped at runtime, so a missing pack
+    # degrades to whatever is available instead of erroring.
+    OCR_LANGUAGES: str = "eng+hin"
+
     # Mean OCR word confidence (0-100) below which a page is considered "weak"
     # and, in smart mode with an AI key configured, re-detected by the AI tier on
     # its own instead of trusting OCR's garbled read. Lower = escalate less.

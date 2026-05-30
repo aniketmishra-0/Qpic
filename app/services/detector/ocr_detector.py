@@ -23,7 +23,7 @@ from .base import (
     starts_to_questions,
 )
 from .furniture import is_branding_text
-from .tesseract_locator import configure_tesseract
+from .tesseract_locator import configure_tesseract, resolve_languages
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +52,15 @@ class OCRDetector:
         self._marker_style = marker_style
         effective_dpi = int(render_dpi or settings.PDF_RENDER_DPI)
 
+        # Resolve the configured OCR languages (e.g. "eng+hin") down to the packs
+        # actually installed, so a Hindi paper is read with the Hindi model when
+        # present and we degrade gracefully when it isn't. Reading the body text
+        # correctly is what lets a question's crop reach its true bottom instead
+        # of stopping after the few lines an English-only model could recognise.
+        ocr_lang = resolve_languages(getattr(settings, "OCR_LANGUAGES", "eng") or "eng")
+        self._ocr_lang = ocr_lang
+        logger.info("ocr_languages using=%s", ocr_lang)
+
         starts: list[QuestionStart] = []
         content_lines: list[ContentLine] = []
         page_heights: dict[int, float] = {}
@@ -70,6 +79,7 @@ class OCRDetector:
                 data = pytesseract.image_to_data(
                     processed,
                     output_type=Output.DICT,
+                    lang=getattr(self, "_ocr_lang", None) or None,
                     config="--oem 3 --psm 6",
                 )
             except Exception as exc:
@@ -87,6 +97,27 @@ class OCRDetector:
 
         # Expose per-page confidence for the pipeline's selective-escalation step.
         self.page_confidence = page_confidence
+
+        # Expose per-page text-line extents in page-percent units
+        # ``(y_top, y_bottom, x_left, x_right)`` so the review step's content-
+        # coverage check works on scanned PDFs too (the PDF text layer is empty
+        # there, so this is the only source of line geometry). Mirrors how
+        # ``page_confidence`` is published for the pipeline to read afterwards.
+        page_lines_pct: dict[int, list[tuple[float, float, float, float]]] = {}
+        for ln in content_lines:
+            ph = page_heights.get(ln.page_num) or 0.0
+            pw = page_widths.get(ln.page_num) or 0.0
+            if ph <= 0 or pw <= 0:
+                continue
+            page_lines_pct.setdefault(ln.page_num, []).append(
+                (
+                    (ln.y_top / ph) * 100.0,
+                    (ln.y_bottom / ph) * 100.0,
+                    (ln.x_left / pw) * 100.0,
+                    (ln.x_right / pw) * 100.0,
+                )
+            )
+        self.page_lines_pct = page_lines_pct
 
         return starts_to_questions(
             starts=starts,

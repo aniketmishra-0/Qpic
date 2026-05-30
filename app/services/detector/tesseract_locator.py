@@ -166,3 +166,54 @@ def configure_tesseract(force: bool = False) -> str:
 
     _configured = True
     return pytesseract.pytesseract.tesseract_cmd
+
+
+def available_languages() -> set[str]:
+    """Return the set of Tesseract language codes installed on this machine.
+
+    Used to filter a requested ``eng+hin`` down to the packs that actually
+    exist, so asking for a language whose ``traineddata`` is missing degrades to
+    whatever is available instead of making Tesseract error out. Returns an
+    empty set if the language list can't be read (caller then falls back to the
+    requested string unchanged).
+    """
+
+    configure_tesseract()
+    try:
+        langs = pytesseract.get_languages(config="")
+        return {str(l).strip() for l in langs if str(l).strip()}
+    except Exception as exc:  # pragma: no cover - depends on local install
+        logger.warning("tesseract_list_langs_failed error=%s", str(exc))
+        return set()
+
+
+def resolve_languages(requested: str) -> str:
+    """Keep only the requested OCR languages that are actually installed.
+
+    ``requested`` is a Tesseract language spec like ``"eng+hin"``. We split on
+    "+", drop any pack not present on the machine, and re-join. When none of the
+    requested packs are installed (or we couldn't read the list) we return the
+    original string so Tesseract makes its own decision rather than getting an
+    empty language — i.e. this never makes things worse than before.
+    """
+
+    wanted = [l.strip() for l in (requested or "").split("+") if l.strip()]
+    if not wanted:
+        return requested
+    installed = available_languages()
+    if not installed:
+        return requested
+    keep = [l for l in wanted if l in installed]
+    if not keep:
+        logger.warning(
+            "ocr_requested_langs_missing requested=%s installed=%s",
+            requested,
+            sorted(installed),
+        )
+        # Prefer English if present, else let Tesseract default.
+        return "eng" if "eng" in installed else (sorted(installed)[0] if installed else requested)
+    if len(keep) < len(wanted):
+        logger.info(
+            "ocr_langs_filtered requested=%s using=%s", requested, "+".join(keep)
+        )
+    return "+".join(keep)

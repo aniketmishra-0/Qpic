@@ -256,3 +256,102 @@ def test_short_crop_vs_tall_neighbours_is_flagged() -> None:
     items = build_analyzed_items(detected)
     q3 = next(it for it in items if it.q_num == "3")
     assert q3.flagged is True
+
+
+def test_tall_merged_crop_is_flagged() -> None:
+    # Two normal-height items plus one that is far taller and large in absolute
+    # terms -> likely two questions merged into one box.
+    detected = [
+        DetectedQuestion(q_num="1", segments=[QuestionSegment(page=1, y_start_pct=5.0, y_end_pct=25.0)]),
+        DetectedQuestion(q_num="2", segments=[QuestionSegment(page=2, y_start_pct=5.0, y_end_pct=25.0)]),
+        DetectedQuestion(q_num="3", segments=[QuestionSegment(page=3, y_start_pct=5.0, y_end_pct=75.0)]),
+    ]
+    items = build_analyzed_items(detected)
+    q3 = next(it for it in items if it.q_num == "3")
+    assert q3.flagged is True
+    assert "taller" in (q3.flag_reason or "").lower()
+
+
+def test_overlapping_crops_are_flagged() -> None:
+    # Two crops that share a vertical strip on the same page/column overlap, even
+    # though each has a perfectly normal height -> "looks fine but isn't".
+    detected = [
+        DetectedQuestion(q_num="1", segments=[QuestionSegment(page=1, y_start_pct=5.0, y_end_pct=40.0)]),
+        DetectedQuestion(q_num="2", segments=[QuestionSegment(page=1, y_start_pct=30.0, y_end_pct=65.0)]),
+    ]
+    items = build_analyzed_items(detected)
+    assert all(it.flagged for it in items)
+    assert all("overlap" in (it.flag_reason or "").lower() for it in items)
+
+    notes = build_review_notes(detected, "text")
+    assert any(n.kind == "incomplete" and "overlap" in n.message.lower() for n in notes)
+
+
+def test_overlap_ignores_different_columns() -> None:
+    # Left/right questions in a 2-up layout share rows but not columns, so they
+    # must not be treated as overlapping.
+    detected = [
+        DetectedQuestion(q_num="1", segments=[QuestionSegment(page=1, y_start_pct=5.0, y_end_pct=40.0, x_start_pct=0.0, x_end_pct=48.0)]),
+        DetectedQuestion(q_num="2", segments=[QuestionSegment(page=1, y_start_pct=5.0, y_end_pct=40.0, x_start_pct=52.0, x_end_pct=100.0)]),
+    ]
+    items = build_analyzed_items(detected)
+    assert all(not it.flagged for it in items)
+
+
+def test_undercovered_crop_is_flagged() -> None:
+    # S3's box (a thin strip) stops at 30% but its body text runs down to ~62%
+    # with no crop covering it -> the strongest "looks fine but isn't" signal.
+    # S4 starts lower, at 70%. The uncovered band (32%..62%) belongs to S3.
+    detected = [
+        DetectedQuestion(
+            q_num="3", is_solution=True,
+            segments=[QuestionSegment(page=3, y_start_pct=18.0, y_end_pct=30.0, x_start_pct=50.0, x_end_pct=100.0)],
+        ),
+        DetectedQuestion(
+            q_num="4", is_solution=True,
+            segments=[QuestionSegment(page=3, y_start_pct=70.0, y_end_pct=90.0, x_start_pct=50.0, x_end_pct=100.0)],
+        ),
+    ]
+    # Text lines on the right column of page 3: a few inside S3's box, then a
+    # tall band below it that no box covers, then S4's lines.
+    page_lines = {
+        3: [
+            (20.0, 23.0, 52.0, 98.0),  # inside S3
+            (25.0, 28.0, 52.0, 98.0),  # inside S3
+            (34.0, 37.0, 52.0, 98.0),  # uncovered - S3's lost tail
+            (40.0, 43.0, 52.0, 98.0),  # uncovered
+            (46.0, 49.0, 52.0, 98.0),  # uncovered
+            (52.0, 55.0, 52.0, 98.0),  # uncovered
+            (58.0, 61.0, 52.0, 98.0),  # uncovered
+            (72.0, 75.0, 52.0, 98.0),  # inside S4
+        ],
+    }
+    items = build_analyzed_items(detected, page_lines)
+    s3 = next(it for it in items if it.q_num == "3")
+    assert s3.flagged is True
+    assert "cover" in (s3.flag_reason or "").lower()
+
+    notes = build_review_notes(detected, "text", None, page_lines)
+    assert any(n.kind == "incomplete" and n.q_num == "3" for n in notes)
+
+
+def test_fully_covered_crops_not_flagged_by_coverage() -> None:
+    # Every text line sits inside a crop -> no coverage flag.
+    detected = [
+        DetectedQuestion(
+            q_num="1", segments=[QuestionSegment(page=1, y_start_pct=10.0, y_end_pct=45.0)],
+        ),
+        DetectedQuestion(
+            q_num="2", segments=[QuestionSegment(page=1, y_start_pct=50.0, y_end_pct=85.0)],
+        ),
+    ]
+    page_lines = {
+        1: [
+            (12.0, 15.0, 5.0, 95.0),
+            (40.0, 43.0, 5.0, 95.0),
+            (52.0, 55.0, 5.0, 95.0),
+            (80.0, 83.0, 5.0, 95.0),
+        ],
+    }
+    items = build_analyzed_items(detected, page_lines)
+    assert all(not it.flagged for it in items)

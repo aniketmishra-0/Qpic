@@ -3,12 +3,12 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#0e0e11" id="themeColorMeta" />
+    <meta name="theme-color" content="#2a2a2f" id="themeColorMeta" />
     <title>Qpic</title>
     <link
       rel="icon"
       type="image/svg+xml"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%237c5cff'/%3E%3Cstop offset='1' stop-color='%236d44ff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='15' fill='url(%23g)'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 24v-7a3 3 0 0 1 3-3h7'/%3E%3Cpath d='M50 40v7a3 3 0 0 1-3 3h-7'/%3E%3Ccircle cx='32' cy='32' r='12'/%3E%3Cpath d='M38 38l7 7'/%3E%3C/g%3E%3C/svg%3E"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23e3261d'/%3E%3Cstop offset='1' stop-color='%23b3140b'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='15' fill='url(%23g)'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 24v-7a3 3 0 0 1 3-3h7'/%3E%3Cpath d='M50 40v7a3 3 0 0 1-3 3h-7'/%3E%3Ccircle cx='32' cy='32' r='12'/%3E%3Cpath d='M38 38l7 7'/%3E%3C/g%3E%3C/svg%3E"
     />
     <!-- Apply the saved theme before first paint to avoid a flash of the wrong colours. -->
     <script>
@@ -32,10 +32,11 @@
          ============================================================ */
       :root {
         /* shared, theme-independent tokens */
-        --accent: #7c5cff;
-        --accent-2: #6d44ff;
-        --radius: 18px;
-        --radius-sm: 11px;
+        /* Adobe Acrobat signature red */
+        --accent: #e3261d;
+        --accent-2: #b3140b;
+        --radius: 12px;
+        --radius-sm: 9px;
         --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 32%, transparent);
         --pdf-bg: #ffffff;
         --overlay: rgba(3, 6, 12, 0.72);
@@ -46,70 +47,76 @@
       :root,
       :root[data-theme="dark"] {
         color-scheme: dark;
-        --bg: #0e0e11;
-        --bg-2: #161619;
-        --panel: #1a1a1f;
-        --panel-2: #161619;
-        --field: #202027;
-        --border: #303039;
-        --border-soft: #26262e;
-        --text: #f4f4f6;
-        --muted: #a1a1ac;
-        --muted-2: #6f6f7b;
+        --bg: #1b1b1e;
+        --bg-2: #232327;
+        --panel: #2a2a2f;
+        --panel-2: #232327;
+        --field: #323239;
+        --border: #3c3c45;
+        --border-soft: #34343c;
+        --text: #f1f1f3;
+        --muted: #b0b0ba;
+        --muted-2: #7c7c88;
         --danger: #f87171;
         --success: #34d399;
         --warn: #fbbf24;
         --switch-knob: #cdd6e6;
-        --shadow: 0 24px 60px -30px rgba(0, 0, 0, 0.8);
-        --bg-glow-1: 12%;
-        --bg-glow-2: 7%;
+        --shadow: 0 18px 44px -28px rgba(0, 0, 0, 0.85);
+        --appbar: #2a2a2f;
+        --appbar-text: #f1f1f3;
+        --bg-glow-1: 0%;
+        --bg-glow-2: 0%;
       }
 
       /* ---- Light palette ---- */
       :root[data-theme="light"] {
         color-scheme: light;
-        --bg: #f3f4f8;
-        --bg-2: #e9ebf1;
+        --bg: #f0f0f2;
+        --bg-2: #e7e7ea;
         --panel: #ffffff;
-        --panel-2: #f7f8fb;
-        --field: #f1f2f7;
-        --border: #d7dae3;
-        --border-soft: #e6e8f0;
-        --text: #1b1c24;
-        --muted: #585c6b;
-        --muted-2: #8b8f9e;
+        --panel-2: #f7f7f9;
+        --field: #f2f2f5;
+        --border: #d8d8de;
+        --border-soft: #e7e7ec;
+        --text: #1f1f24;
+        --muted: #5a5a64;
+        --muted-2: #8c8c96;
         --danger: #dc2626;
         --success: #059669;
         --warn: #d97706;
         --switch-knob: #b9bdca;
-        --shadow: 0 20px 48px -28px rgba(31, 38, 71, 0.35);
-        --overlay: rgba(20, 24, 40, 0.45);
-        --bg-glow-1: 9%;
-        --bg-glow-2: 6%;
+        --shadow: 0 14px 36px -26px rgba(20, 20, 30, 0.35);
+        --overlay: rgba(20, 20, 28, 0.5);
+        --appbar: #ffffff;
+        --appbar-text: #1f1f24;
+        --bg-glow-1: 0%;
+        --bg-glow-2: 0%;
       }
 
       /* ---- System: follow the OS when no explicit choice is made ---- */
       @media (prefers-color-scheme: light) {
         :root[data-theme="system"] {
           color-scheme: light;
-          --bg: #f3f4f8;
-          --bg-2: #e9ebf1;
+          --bg: #f0f0f2;
+          --bg-2: #e7e7ea;
           --panel: #ffffff;
-          --panel-2: #f7f8fb;
-          --field: #f1f2f7;
-          --border: #d7dae3;
-          --border-soft: #e6e8f0;
-          --text: #1b1c24;
-          --muted: #585c6b;
-          --muted-2: #8b8f9e;
+          --panel-2: #f7f7f9;
+          --field: #f2f2f5;
+          --border: #d8d8de;
+          --border-soft: #e7e7ec;
+          --text: #1f1f24;
+          --muted: #5a5a64;
+          --muted-2: #8c8c96;
           --danger: #dc2626;
           --success: #059669;
           --warn: #d97706;
           --switch-knob: #b9bdca;
-          --shadow: 0 20px 48px -28px rgba(31, 38, 71, 0.35);
-          --overlay: rgba(20, 24, 40, 0.45);
-          --bg-glow-1: 9%;
-          --bg-glow-2: 6%;
+          --shadow: 0 14px 36px -26px rgba(20, 20, 30, 0.35);
+          --overlay: rgba(20, 20, 28, 0.5);
+          --appbar: #ffffff;
+          --appbar-text: #1f1f24;
+          --bg-glow-1: 0%;
+          --bg-glow-2: 0%;
         }
       }
 
@@ -124,11 +131,7 @@
         font-size: 14px;
         line-height: 1.45;
         color: var(--text);
-        background:
-          radial-gradient(900px 520px at 8% -10%, color-mix(in srgb, var(--accent) var(--bg-glow-1), transparent) 0%, transparent 55%),
-          radial-gradient(800px 520px at 100% 0%, color-mix(in srgb, var(--accent) var(--bg-glow-2), transparent) 0%, transparent 50%),
-          var(--bg);
-        background-attachment: fixed;
+        background: var(--bg);
         -webkit-font-smoothing: antialiased;
         text-rendering: optimizeLegibility;
         transition: var(--theme-transition);
@@ -155,38 +158,65 @@
 
       .container {
         width: 100%;
-        max-width: 920px;
+        max-width: 1320px;
         margin: 0 auto;
-        padding: clamp(14px, 2vw, 20px) clamp(14px, 3vw, 22px) 20px;
+        padding: clamp(16px, 2.4vw, 26px) clamp(16px, 3vw, 34px) 28px;
       }
 
-      /* ---------- Header ---------- */
-      .header {
+      /* ---------- Adobe Acrobat-style top app bar ---------- */
+      .appbar {
+        position: sticky;
+        top: 0;
+        z-index: 30;
+        background: var(--appbar);
+        border-bottom: 1px solid var(--border);
+        box-shadow: 0 1px 0 0 var(--border-soft), 0 6px 18px -16px rgba(0, 0, 0, 0.55);
+        transition: var(--theme-transition);
+      }
+      /* The signature Acrobat red rule under the bar */
+      .appbar::after {
+        content: "";
+        position: absolute;
+        left: 0; right: 0; bottom: -1px;
+        height: 2px;
+        background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      }
+      .appbar-inner {
+        max-width: 1320px;
+        margin: 0 auto;
         display: flex;
         align-items: center;
-        gap: 14px;
-        margin-bottom: 16px;
+        gap: 18px;
+        padding: 10px clamp(14px, 3vw, 26px);
       }
+      .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
       .logo {
         flex: none;
-        width: 46px;
-        height: 46px;
-        border-radius: 13px;
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
         display: grid;
         place-items: center;
         background: linear-gradient(150deg, var(--accent), var(--accent-2));
-        box-shadow: 0 12px 28px -12px color-mix(in srgb, var(--accent) 75%, transparent);
+        box-shadow: 0 8px 20px -10px color-mix(in srgb, var(--accent) 80%, transparent);
         color: #fff;
       }
-      .logo svg { width: 23px; height: 23px; display: block; }
-      .header-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-      .header h1 { font-size: 23px; margin: 0; font-weight: 750; letter-spacing: -0.015em; }
-      .header p { margin: 0; color: var(--muted); font-size: 13px; }
+      .logo svg { width: 20px; height: 20px; display: block; }
+      .brand-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+      .brand-name { font-size: 18px; font-weight: 750; letter-spacing: -0.015em; color: var(--appbar-text); }
+      .brand-sub { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .appbar-actions { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+
+      @media (max-width: 720px) {
+        .appbar-inner { flex-wrap: wrap; gap: 10px; }
+        .brand-sub { display: none; }
+        .tool-tabs { order: 3; width: 100%; justify-content: center; }
+        .appbar-actions { margin-left: auto; }
+      }
 
       /* ---------- Theme switcher (segmented) ---------- */
       .theme-switch {
         flex: none;
-        margin-left: auto;
         display: inline-flex;
         align-items: center;
         gap: 2px;
@@ -201,15 +231,15 @@
         border: none;
         background: transparent;
         color: var(--muted);
-        width: 32px;
-        height: 30px;
+        width: 30px;
+        height: 28px;
         border-radius: 999px;
         display: grid;
         place-items: center;
         cursor: pointer;
         transition: background 160ms ease, color 160ms ease;
       }
-      .theme-switch button svg { width: 16px; height: 16px; display: block; }
+      .theme-switch button svg { width: 15px; height: 15px; display: block; }
       .theme-switch button:hover { color: var(--text); }
       .theme-switch button[aria-pressed="true"] {
         background: var(--panel);
@@ -217,28 +247,17 @@
         box-shadow: 0 2px 8px -3px rgba(0, 0, 0, 0.35);
       }
       .theme-switch button:focus-visible { outline: none; box-shadow: var(--ring); }
-      @media (max-width: 480px) {
-        .header { flex-wrap: wrap; }
-        .theme-switch { margin-left: 0; order: 3; width: 100%; justify-content: center; }
-      }
 
-      /* ---------- Tool switcher tabs ---------- */
-      .tool-bar {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        margin-bottom: 14px;
-      }
+      /* ---------- Tool switcher tabs (in app bar) ---------- */
       .tool-tabs {
         display: inline-flex;
         gap: 3px;
         padding: 4px;
-        border-radius: 999px;
+        border-radius: 10px;
         background: var(--field);
         border: 1px solid var(--border-soft);
       }
       .clear-btn {
-        margin-left: auto;
         flex: none;
         appearance: none;
         display: inline-flex;
@@ -250,8 +269,8 @@
         color: var(--muted);
         background: var(--field);
         border: 1px solid var(--border);
-        border-radius: 999px;
-        padding: 8px 15px;
+        border-radius: 9px;
+        padding: 7px 13px;
         cursor: pointer;
         transition: color 140ms ease, border-color 140ms ease, background 140ms ease;
       }
@@ -271,7 +290,7 @@
         font-size: 13px;
         font-weight: 600;
         padding: 8px 16px;
-        border-radius: 999px;
+        border-radius: 7px;
         cursor: pointer;
         display: inline-flex;
         align-items: center;
@@ -286,6 +305,10 @@
         box-shadow: 0 2px 8px -3px rgba(0, 0, 0, 0.35);
       }
       .tool-tab:focus-visible { outline: none; box-shadow: var(--ring); }
+      @media (max-width: 480px) {
+        .clear-btn span { display: none; }
+        .clear-btn { padding: 7px 9px; }
+      }
 
       /* ---------- Rename preview list ---------- */
       .rename-list {
@@ -552,26 +575,39 @@
       .btn-primary {
         width: 100%;
         border-radius: var(--radius-sm);
-        border: 1px solid var(--border);
-        background: var(--panel);
-        color: var(--text);
-        padding: 12px 18px;
-        font-size: 14.5px; font-weight: 650; font-family: inherit;
+        border: 1px solid transparent;
+        background: linear-gradient(180deg, var(--accent), var(--accent-2));
+        color: #fff;
+        padding: 13px 18px;
+        font-size: 14.5px; font-weight: 700; font-family: inherit;
         cursor: pointer;
         display: flex; align-items: center; justify-content: center; gap: 9px;
-        transition: transform 120ms ease, border-color 120ms ease, background 120ms ease, box-shadow 120ms ease;
+        box-shadow: 0 12px 26px -14px color-mix(in srgb, var(--accent) 85%, transparent);
+        transition: transform 120ms ease, filter 120ms ease, box-shadow 120ms ease;
       }
       .btn-primary:hover:not(:disabled) {
-        border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
-        background: color-mix(in srgb, var(--accent) 8%, var(--panel));
+        filter: brightness(1.06);
+        box-shadow: 0 16px 30px -14px color-mix(in srgb, var(--accent) 90%, transparent);
       }
       .btn-primary:active:not(:disabled) { transform: translateY(1px); }
-      .btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
+      .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
       .btn-primary svg { width: 18px; height: 18px; }
-      .btn-primary .sparkle { color: var(--accent); }
+      .btn-primary .sparkle { color: #fff; }
 
-      /* The card-wrapped main action bar */
-      .action-card { margin-top: 12px; padding: 0; border: none; background: none; box-shadow: none; }
+      /* The card-wrapped main action bar — pinned to the bottom of the window
+         like a desktop app's action toolbar (Acrobat-style). */
+      .action-card {
+        position: sticky;
+        bottom: 0;
+        z-index: 20;
+        margin-top: 16px;
+        padding: 14px 16px calc(14px + env(safe-area-inset-bottom, 0px));
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: color-mix(in srgb, var(--appbar) 94%, transparent);
+        backdrop-filter: blur(8px);
+        box-shadow: 0 -8px 24px -18px rgba(0, 0, 0, 0.55);
+      }
 
       .spinner {
         width: 17px; height: 17px;
@@ -947,45 +983,27 @@
     </style>
   </head>
   <body>
-    <div class="container">
-      <div class="header">
-        <div class="logo" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <!-- crop-mark corners -->
-            <path d="M5 9V6a1 1 0 0 1 1-1h3" />
-            <path d="M19 15v3a1 1 0 0 1-1 1h-3" />
-            <!-- stylized Q -->
-            <circle cx="12" cy="12" r="4.2" />
-            <path d="M14.2 14.2 16 16" />
-          </svg>
-        </div>
-        <div class="header-text">
-          <h1>Qpic</h1>
-          <p id="headerSub">Upload a PDF → smart-detect questions → download cropped ZIP</p>
-        </div>
-        <div class="theme-switch" id="themeSwitch" role="group" aria-label="Color theme">
-          <button type="button" data-theme-value="light" title="Light" aria-label="Light theme" aria-pressed="false">
+    <!-- ===== Adobe Acrobat-style top app bar ===== -->
+    <header class="appbar">
+      <div class="appbar-inner">
+        <div class="brand">
+          <div class="logo" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="4" />
-              <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+              <!-- crop-mark corners -->
+              <path d="M5 9V6a1 1 0 0 1 1-1h3" />
+              <path d="M19 15v3a1 1 0 0 1-1 1h-3" />
+              <!-- stylized Q -->
+              <circle cx="12" cy="12" r="4.2" />
+              <path d="M14.2 14.2 16 16" />
             </svg>
-          </button>
-          <button type="button" data-theme-value="system" title="System" aria-label="System theme" aria-pressed="false">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="2" y="3" width="20" height="14" rx="2" />
-              <path d="M8 21h8M12 17v4" />
-            </svg>
-          </button>
-          <button type="button" data-theme-value="dark" title="Dark" aria-label="Dark theme" aria-pressed="false">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-            </svg>
-          </button>
+          </div>
+          <div class="brand-text">
+            <span class="brand-name">Qpic</span>
+            <span class="brand-sub" id="headerSub">Upload a PDF → smart-detect questions → download cropped ZIP</span>
+          </div>
         </div>
-      </div>
 
-      <!-- Tool switcher: Crop (PDF → images) vs Rename Batch (rename + ZIP) -->
-      <div class="tool-bar">
+        <!-- Tool switcher: Crop (PDF → images) vs Rename Batch (rename + ZIP) -->
         <div class="tool-tabs" id="toolTabs" role="tablist" aria-label="Tools">
           <button type="button" class="tool-tab active" data-tool="crop" role="tab" aria-selected="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg>
@@ -996,12 +1014,36 @@
             <span>Rename Batch</span>
           </button>
         </div>
-        <button type="button" class="clear-btn" id="clearBtn" title="Clear everything in this tool" aria-label="Clear">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
-          <span>Clear</span>
-        </button>
-      </div>
 
+        <div class="appbar-actions">
+          <button type="button" class="clear-btn" id="clearBtn" title="Clear everything in this tool" aria-label="Clear">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+            <span>Clear</span>
+          </button>
+          <div class="theme-switch" id="themeSwitch" role="group" aria-label="Color theme">
+            <button type="button" data-theme-value="light" title="Light" aria-label="Light theme" aria-pressed="false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="4" />
+                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+              </svg>
+            </button>
+            <button type="button" data-theme-value="system" title="System" aria-label="System theme" aria-pressed="false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="3" width="20" height="14" rx="2" />
+                <path d="M8 21h8M12 17v4" />
+              </svg>
+            </button>
+            <button type="button" data-theme-value="dark" title="Dark" aria-label="Dark theme" aria-pressed="false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="container">
       <!-- ============ CROP TOOL ============ -->
       <div id="cropView">
 
@@ -1359,8 +1401,8 @@
 
         function syncMeta(choice) {
           const eff = effectiveTheme(choice);
-          // Match the page background so the mobile browser chrome blends in.
-          metaThemeColor.setAttribute('content', eff === 'light' ? '#f3f4f8' : '#0e0e11');
+          // Match the app bar so the mobile browser chrome blends in.
+          metaThemeColor.setAttribute('content', eff === 'light' ? '#ffffff' : '#2a2a2f');
         }
 
         function syncButtons(choice) {
@@ -1866,7 +1908,65 @@
         dl.className = className;
         dl.innerHTML = ICONS.download + `<span>${label}</span>`;
         dl.setAttribute('download', '');
+        // The download filename is the link's visible label (e.g. "Q.zip").
+        const fileName = (label.match(/[\w.-]+\.zip$/i) || ['download.zip'])[0];
+        dl.addEventListener('click', (e) => {
+          // Inside the desktop app a webview has no download manager, so a plain
+          // <a download> saves nothing. Route through the native Save-As bridge
+          // instead; in a real browser we let the default download happen.
+          if (isDesktopApp()) {
+            e.preventDefault();
+            saveViaBridge(url, fileName, dl);
+          }
+        });
         return dl;
+      }
+
+      // ---- Desktop save bridge (pywebview) -------------------------------
+      // True only inside the packaged .app/.exe, where Python exposes a Save-As
+      // API on window.pywebview.api. In a normal browser this stays false and
+      // the original download paths are used unchanged.
+      function isDesktopApp() {
+        return !!(window.pywebview && window.pywebview.api && window.pywebview.api.save_url);
+      }
+
+      async function saveViaBridge(url, fileName, anchorEl) {
+        const prevHtml = anchorEl ? anchorEl.innerHTML : null;
+        if (anchorEl) {
+          anchorEl.style.pointerEvents = 'none';
+          anchorEl.innerHTML = '<span class="spinner"></span><span>Saving…</span>';
+        }
+        try {
+          const res = await window.pywebview.api.save_url(url, fileName);
+          if (res && res.ok) {
+            setStatus(`Saved <strong>${fileName}</strong> to your chosen folder.`, 'ok');
+          } else if (res && res.cancelled) {
+            // User dismissed the dialog — leave the existing status untouched.
+          } else {
+            setStatus(`Couldn't save: ${(res && res.error) || 'unknown error'}`, 'error');
+          }
+        } catch (err) {
+          setStatus(`Couldn't save: ${err && err.message ? err.message : err}`, 'error');
+        } finally {
+          if (anchorEl) {
+            anchorEl.style.pointerEvents = '';
+            anchorEl.innerHTML = prevHtml;
+          }
+        }
+      }
+
+      // Convert a Blob to a bare base64 string (no data: prefix) for the bridge.
+      function blobToBase64(blob) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = String(reader.result || '');
+            const comma = result.indexOf(',');
+            resolve(comma >= 0 ? result.slice(comma + 1) : result);
+          };
+          reader.onerror = () => reject(reader.error || new Error('read failed'));
+          reader.readAsDataURL(blob);
+        });
       }
 
       function showRetry() {
@@ -2847,16 +2947,29 @@
             throw new Error(extractErrorMessage(data && data.detail, res.status));
           }
           const blob = await res.blob();
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = 'renamed_images.zip';
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-          setTimeout(() => URL.revokeObjectURL(url), 4000);
-
-          renameStatusMsg(`Done. Renamed <strong>${renameFiles.length}</strong> image${renameFiles.length === 1 ? '' : 's'} into a ZIP.`, 'ok');
+          if (isDesktopApp()) {
+            // Webview has no download manager: hand the bytes to the native
+            // Save-As bridge instead of a blob: link that would do nothing.
+            const b64 = await blobToBase64(blob);
+            const result = await window.pywebview.api.save_base64(b64, 'renamed_images.zip');
+            if (result && result.ok) {
+              renameStatusMsg(`Done. Saved <strong>${renameFiles.length}</strong> renamed image${renameFiles.length === 1 ? '' : 's'} as a ZIP.`, 'ok');
+            } else if (result && result.cancelled) {
+              renameStatusMsg('Save cancelled.', null);
+            } else {
+              renameStatusMsg(`Couldn't save: ${(result && result.error) || 'unknown error'}`, 'error');
+            }
+          } else {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'renamed_images.zip';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 4000);
+            renameStatusMsg(`Done. Renamed <strong>${renameFiles.length}</strong> image${renameFiles.length === 1 ? '' : 's'} into a ZIP.`, 'ok');
+          }
         } catch (e) {
           renameStatusMsg(e.message, 'error');
         } finally {

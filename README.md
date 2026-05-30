@@ -1,6 +1,21 @@
-# Qpic (Backend)
+# Qpic
 
-FastAPI backend that accepts a PDF, detects MCQ question regions using a smart 3-tier pipeline (text → OCR → AI fallback), crops/stitches each question (including cross-page questions), and returns a ZIP of PNGs.
+FastAPI app that accepts a PDF, detects MCQ question regions using a smart
+3-tier pipeline (text → OCR → AI fallback), crops/stitches each question
+(including cross-page questions), and returns a ZIP of images. It ships with a
+polished single-page web UI (Adobe Acrobat-style, with light/dark/system
+themes) and can run either in the browser or as a native desktop app.
+
+**Highlights**
+
+- **Smart detection** — text, OCR and an optional AI vision tier, with manual
+  review + hand-fixing before download.
+- **Acrobat-style UI** — a clean web front-end served from `static/index.html`;
+  a top app bar, tool tabs (Crop / Rename Batch) and a review canvas.
+- **Two desktop backends** — pywebview (small) or Qt/PySide6 (consistent
+  Chromium rendering). See *Desktop app* below.
+- **Offline-capable** — bundles Tesseract for OCR; AI is only used when a key is
+  configured and Online mode is on.
 
 ## Smart mode + manual review
 
@@ -180,6 +195,32 @@ Notes:
 - Cropped images/zips are written to a per-user folder
   (`~/Library/Application Support/Qpic` on macOS).
 
+### Qt (PySide6) variant
+
+There are **two** desktop window backends; both run the same hidden FastAPI
+server and show the same web UI, so feature-wise they're identical:
+
+| | `desktop.py` (default) | `desktop_qt.py` (Qt) |
+|---|---|---|
+| Window | pywebview → OS webview (WKWebView / WebView2) | Qt `QWebEngineView` (bundled Chromium) |
+| Rendering | depends on the OS webview | identical Chromium on every OS |
+| Bundle size | smaller | larger (~150-200 MB, ships Chromium) |
+| Build spec | `desktop.spec` | `desktop_qt.spec` |
+| Build script | `build_desktop.sh` | `build_desktop_qt.sh` |
+
+Use the Qt variant when you want pixel-identical rendering across macOS and
+Windows and don't mind the larger download.
+
+```bash
+# Run from source
+pip install -r requirements.txt -r requirements-desktop-qt.txt
+python desktop_qt.py
+
+# Build the bundle
+./build_desktop_qt.sh        # -> dist/Qpic.app (macOS)
+```
+
+
 ## CI builds (both macOS + Windows, no second machine)
 
 `.github/workflows/build-desktop.yml` builds the desktop app on **both**
@@ -191,6 +232,10 @@ archive (`Qpic-macOS.zip` / `Qpic-Windows.zip`).
   Download the results from the run's *Artifacts*.
 - **Cut a release:** push a tag like `v1.0.0` and the workflow attaches both
   archives to a GitHub Release automatically.
+
+## License
+
+Released under the [MIT License](LICENSE) — © 2026 Aniket Mishra.
 
 
 

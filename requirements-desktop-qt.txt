@@ -1,0 +1,8 @@
+# Extra dependencies for the Qt (PySide6) desktop build.
+# Install on top of requirements.txt before building desktop_qt.spec.
+#
+# PySide6 bundles Qt WebEngine (Chromium), so the UI renders identically on
+# macOS and Windows. This makes the build noticeably larger than the pywebview
+# variant (~150-200 MB) in exchange for consistent rendering.
+PySide6>=6.6.0
+pyinstaller>=6.0

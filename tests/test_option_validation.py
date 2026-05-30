@@ -50,7 +50,7 @@ def test_too_few_labels_not_flagged() -> None:
 
 
 def test_build_analyzed_items_flags_partial_options() -> None:
-    detected = [_q("1", "ABCD"), _q("2", "AC")]
+    detected = [_q("1", "ABCD", y0=5.0, y1=20.0), _q("2", "AC", y0=25.0, y1=40.0)]
     items = build_analyzed_items(detected)
     by_num = {it.q_num: it for it in items}
     assert by_num["1"].flagged is False
@@ -60,7 +60,12 @@ def test_build_analyzed_items_flags_partial_options() -> None:
 
 def test_build_review_notes_includes_option_note() -> None:
     # Three items so numbering-gap logic stays quiet; one has clipped options.
-    detected = [_q("1", "ABCD"), _q("2", "ABCD"), _q("3", "AC")]
+    # Distinct rows so they don't trip the overlap check.
+    detected = [
+        _q("1", "ABCD", y0=5.0, y1=20.0),
+        _q("2", "ABCD", y0=25.0, y1=40.0),
+        _q("3", "AC", y0=45.0, y1=60.0),
+    ]
     notes = build_review_notes(detected, method_used="text")
     assert any(
         n.kind == "incomplete" and n.q_num == "3" and "option" in n.message.lower()
