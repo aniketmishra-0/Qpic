@@ -33,11 +33,22 @@ import re
 import shutil
 import subprocess
 import sys
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 PROJECT_ROOT = HERE.parent
 DEST = PROJECT_ROOT / "vendor" / "tesseract"
+
+# Official Tesseract language data. ``tessdata_best`` gives the most accurate
+# (LSTM) models; we fall back to the lighter ``tessdata`` repo if a language
+# isn't in _best. Used to fetch languages an installed Tesseract didn't ship
+# (e.g. the Windows/choco build has no Hindi).
+_TESSDATA_URLS = (
+    "https://github.com/tesseract-ocr/tessdata_best/raw/main/{lang}.traineddata",
+    "https://github.com/tesseract-ocr/tessdata/raw/main/{lang}.traineddata",
+)
 
 # Library prefixes that always exist on the target OS — never copy or relocate
 # these (doing so can break the bundle on a different OS patch level).
@@ -115,11 +126,40 @@ def _find_tessdata(binary: Path) -> Path | None:
     return None
 
 
+def _download_traineddata(lang: str, dst_dir: Path) -> bool:
+    """Download ``<lang>.traineddata`` from the official repos into ``dst_dir``.
+
+    Tries ``tessdata_best`` first (most accurate), then the lighter ``tessdata``
+    repo. Returns True on success. Used to supply languages the installed
+    Tesseract didn't ship — e.g. the Windows/choco build has no Hindi, so this
+    keeps Hindi OCR working in the bundle without depending on the build host.
+    """
+
+    dst = dst_dir / f"{lang}.traineddata"
+    for template in _TESSDATA_URLS:
+        url = template.format(lang=lang)
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "qpic-build"})
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                data = resp.read()
+            # A valid model is megabytes; an HTML error page is tiny. Guard so a
+            # stray 404 body never gets written as if it were language data.
+            if len(data) < 100_000:
+                continue
+            dst.write_bytes(data)
+            print(f"    downloaded {lang} ({len(data) // 1024} KB) from {url}")
+            return True
+        except (urllib.error.URLError, OSError) as exc:
+            print(f"    download failed for {lang} from {url}: {exc}")
+            continue
+    return False
+
+
 # --------------------------------------------------------------------------- #
 # macOS
 # --------------------------------------------------------------------------- #
-def _mac_deps(target: Path) -> list[str]:
-    """Non-system dylibs a Mach-O file links against (one level)."""
+def _mac_dep_lines(target: Path) -> list[str]:
+    """Raw dependency install-names from ``otool -L`` (system libs excluded)."""
 
     out = _run(["otool", "-L", str(target)])
     deps: list[str] = []
@@ -130,10 +170,24 @@ def _mac_deps(target: Path) -> list[str]:
         dep = m.group(1)
         if dep.startswith(_MAC_SYSTEM_PREFIXES):
             continue
-        if dep.startswith("@"):  # already relocated reference
-            continue
         deps.append(dep)
     return deps
+
+
+def _resolve_mac_dep(dep: str, owner: Path) -> Path | None:
+    """Resolve a dependency install-name to a real file on disk.
+
+    Handles absolute paths plus the relocatable prefixes Homebrew libs use
+    (``@rpath`` / ``@loader_path`` / ``@executable_path``), which we look up
+    next to the library that referenced them — Homebrew keeps a formula's libs
+    in one directory, so this resolves the whole closure.
+    """
+
+    if dep.startswith(("@rpath/", "@loader_path/", "@executable_path/")):
+        cand = owner.parent / Path(dep).name
+        return cand if cand.is_file() else None
+    p = Path(dep)
+    return p if p.is_file() else None
 
 
 def _vendor_macos(binary: Path, dest: Path) -> None:
@@ -142,19 +196,17 @@ def _vendor_macos(binary: Path, dest: Path) -> None:
 
     # Resolve the full dependency closure of the binary.
     collected: dict[str, Path] = {}  # basename -> real source path
-    queue = list(_mac_deps(binary))
+    queue: list[tuple[str, Path]] = [(d, binary) for d in _mac_dep_lines(binary)]
     while queue:
-        dep = queue.pop()
-        src = Path(dep)
-        if not src.is_file():
-            # Some deps are referenced by an install-name that isn't a real path
-            # (e.g. @rpath). Best-effort: skip; the linker found it at build time.
+        dep, owner = queue.pop()
+        src = _resolve_mac_dep(dep, owner)
+        if src is None:
             continue
         name = src.name
         if name in collected:
             continue
         collected[name] = src
-        queue.extend(_mac_deps(src))
+        queue.extend((d, src) for d in _mac_dep_lines(src))
 
     # Copy binary + dylibs side by side.
     dst_bin = bin_dir / "tesseract"
@@ -173,9 +225,9 @@ def _vendor_macos(binary: Path, dest: Path) -> None:
                 check=False,
                 capture_output=True,
             )
-        for dep in _mac_deps(target):
+        for dep in _mac_dep_lines(target):
             base = Path(dep).name
-            if base in collected:
+            if base in collected and dep != f"@loader_path/{base}":
                 subprocess.run(
                     ["install_name_tool", "-change", dep, f"@loader_path/{base}", str(target)],
                     check=False,
@@ -185,6 +237,15 @@ def _vendor_macos(binary: Path, dest: Path) -> None:
     _relocate(dst_bin, is_lib=False)
     for name in collected:
         _relocate(bin_dir / name, is_lib=True)
+
+    # install_name_tool invalidates the code signature; on Apple Silicon the OS
+    # then SIGKILLs the binary. Re-sign ad-hoc so the relocated copy runs.
+    for target in [dst_bin, *[bin_dir / n for n in collected]]:
+        subprocess.run(
+            ["codesign", "--force", "--sign", "-", str(target)],
+            check=False,
+            capture_output=True,
+        )
 
 
 # --------------------------------------------------------------------------- #
@@ -244,21 +305,45 @@ def main() -> int:
     else:
         _vendor_linux(binary, DEST)
 
-    # Copy language data into vendor/tesseract/tessdata.
-    tessdata = _find_tessdata(binary)
-    if not tessdata:
-        sys.exit("Could not find tessdata (the *.traineddata language files).")
+    # Copy language data into vendor/tesseract/tessdata, downloading any the
+    # installed Tesseract didn't ship (so e.g. Hindi is present on Windows too).
     wanted = {l.strip() for l in args.langs.split(",") if l.strip()}
     dst_tessdata = DEST / "tessdata"
     dst_tessdata.mkdir(parents=True, exist_ok=True)
-    copied = []
-    for td in tessdata.glob("*.traineddata"):
-        if not wanted or td.stem in wanted:
-            shutil.copy2(td, dst_tessdata / td.name)
-            copied.append(td.stem)
-    if not copied:
-        sys.exit(f"None of the requested languages {sorted(wanted)} found in {tessdata}")
-    print(f"==> Vendored languages: {', '.join(sorted(copied))}")
+
+    tessdata = _find_tessdata(binary)
+    copied: set[str] = set()
+    if tessdata:
+        for td in tessdata.glob("*.traineddata"):
+            if not wanted or td.stem in wanted:
+                shutil.copy2(td, dst_tessdata / td.name)
+                copied.add(td.stem)
+    else:
+        print("    note: no local tessdata found — will fetch all languages")
+
+    # Fetch any requested language missing from the local install.
+    missing = sorted(wanted - copied)
+    downloaded: list[str] = []
+    failed: list[str] = []
+    for lang in missing:
+        print(f"==> Fetching missing language: {lang}")
+        if _download_traineddata(lang, dst_tessdata):
+            downloaded.append(lang)
+        else:
+            failed.append(lang)
+
+    have = sorted(copied | set(downloaded))
+    if not have:
+        sys.exit(
+            f"No language data available. Requested {sorted(wanted)}; "
+            f"none found locally and downloads failed."
+        )
+    print(f"==> Vendored languages: {', '.join(have)}")
+    if downloaded:
+        print(f"    (downloaded: {', '.join(sorted(downloaded))})")
+    if failed:
+        # Non-fatal: the bundle still works with the languages we do have.
+        print(f"    WARNING: could not obtain: {', '.join(failed)}")
     print(f"==> Done. Self-contained Tesseract at: {DEST}")
     return 0
 

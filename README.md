@@ -164,13 +164,33 @@ build_desktop.bat
 
 Notes:
 - You can only build the macOS `.app` on a Mac and the Windows `.exe` on Windows;
-  one machine can't build the other's binary.
+  one machine can't build the other's binary. To build **both** without two
+  machines, use the GitHub Actions workflow (see *CI builds* below).
 - The build is **unsigned**, so the first launch on macOS shows an
   "unidentified developer" warning — right-click the app → **Open** to allow it.
-- Searchable (text) PDFs work fully offline. OCR for scanned PDFs needs Tesseract
-  installed on the user's machine; the AI fallback needs internet + an API key.
+- **OCR works offline out of the box.** The build vendors a self-contained
+  Tesseract (binary + libraries + `eng`/`hin`/`osd` language data) into the app
+  via `scripts/vendor_tesseract.py`, so scanned PDFs are handled with no
+  separate Tesseract install on the user's machine. Any requested language the
+  build host's Tesseract didn't ship (e.g. Hindi on the Windows installer) is
+  downloaded automatically from the official `tessdata` repos at build time. At
+  runtime the app finds it in this order: `TESSERACT_CMD` env var → the copy
+  bundled inside the app → a standard system install → whatever is on `PATH`.
+  The AI fallback still needs internet + an API key.
 - Cropped images/zips are written to a per-user folder
   (`~/Library/Application Support/Qpic` on macOS).
+
+## CI builds (both macOS + Windows, no second machine)
+
+`.github/workflows/build-desktop.yml` builds the desktop app on **both**
+`macos-latest` and `windows-latest` runners. Each runner installs Tesseract,
+vendors it into the bundle, runs PyInstaller, and uploads an installer-ready
+archive (`Qpic-macOS.zip` / `Qpic-Windows.zip`).
+
+- **Run it on demand:** Actions tab → *Build desktop apps* → *Run workflow*.
+  Download the results from the run's *Artifacts*.
+- **Cut a release:** push a tag like `v1.0.0` and the workflow attaches both
+  archives to a GitHub Release automatically.
 
 
 
