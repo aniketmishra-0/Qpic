@@ -1,0 +1,94 @@
+name: Build desktop apps
+
+# Builds the Qpic desktop app on macOS and Windows, bundling a self-contained
+# Tesseract into each so OCR works offline with no separate install. Runs on a
+# version tag (v1.2.3 -> attaches the builds to a GitHub Release) and can be
+# kicked off by hand from the Actions tab.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write  # needed to create a Release when triggered by a tag
+
+jobs:
+  build:
+    name: Build (${{ matrix.label }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            label: macOS
+          - os: windows-latest
+            label: Windows
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # ---- Install a system Tesseract to vendor from -----------------------
+      - name: Install Tesseract (macOS)
+        if: runner.os == 'macOS'
+        run: brew install tesseract tesseract-lang
+
+      - name: Install Tesseract (Windows)
+        if: runner.os == 'Windows'
+        run: choco install --no-progress -y tesseract
+
+      # ---- Python deps -----------------------------------------------------
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-desktop.txt
+
+      # ---- Vendor Tesseract into vendor/tesseract --------------------------
+      - name: Vendor Tesseract (macOS)
+        if: runner.os == 'macOS'
+        run: python scripts/vendor_tesseract.py --langs eng,hin,osd
+
+      - name: Vendor Tesseract (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: python scripts\vendor_tesseract.py --langs eng,hin,osd
+
+      # ---- Build with PyInstaller ------------------------------------------
+      - name: Build app
+        run: pyinstaller desktop.spec --noconfirm
+
+      # ---- Package installer-ready archives --------------------------------
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          cd dist
+          ditto -c -k --sequesterRsrc --keepParent "Qpic.app" "Qpic-macOS.zip"
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path "dist/Qpic/*" -DestinationPath "dist/Qpic-Windows.zip" -Force
+
+      # ---- Upload --------------------------------------------------------
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Qpic-${{ matrix.label }}
+          path: dist/Qpic-*.zip
+          if-no-files-found: error
+
+      - name: Attach to Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/Qpic-*.zip
+          fail_on_unmatched_files: false

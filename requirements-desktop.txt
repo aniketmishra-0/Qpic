@@ -1,0 +1,4 @@
+# Extra dependencies needed only to build/run the desktop (.app / .exe) version.
+# Install these on top of requirements.txt before building.
+pywebview>=5.0
+pyinstaller>=6.0

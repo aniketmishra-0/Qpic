@@ -1,0 +1,193 @@
+# Qpic (Backend)
+
+FastAPI backend that accepts a PDF, detects MCQ question regions using a smart 3-tier pipeline (text → OCR → AI fallback), crops/stitches each question (including cross-page questions), and returns a ZIP of PNGs.
+
+## Smart mode + manual review
+
+Beyond the one-shot `/crop` flow, the app has a **Smart mode** (on by default in
+the UI) that handles *any* PDF layout and lets you fix detection by hand before
+downloading:
+
+1. **Analyze** (`POST /api/analyze`) — runs the pipeline in *smart* mode. The
+   cheap text/OCR tiers are accepted only when they look confident (good
+   density + unbroken numbering); otherwise it escalates to the Claude vision
+   tier so odd layouts/numbering still get detected. Returns the detected
+   regions, per-page geometry + preview images, and **review notes**, including
+   crops that look **cut off / half** (a crop that stops at the page edge, or is
+   much shorter than its neighbours and probably lost its options), likely
+   duplicates, and numbering gaps.
+2. **Review popup** — the UI shows every detected box over the page previews and
+   flags anything uncertain. For a cut-off item you hit **Re-select** (or the
+   **Fix** button on its note) and drag the *correct full region* on the page —
+   the item's box is replaced. You can also **draw** a box for a missed item, or
+   delete extra/duplicate ones. **Snap to content** (on by default) auto-tightens
+   any box you draw to the actual text/figure inside it, so a rough drag becomes
+   a clean, content-hugging crop.
+
+   Several checks make the review smarter:
+   - **Gap recovery** — if the detected numbering skips a value (e.g. 19 → 21),
+     the pipeline re-reads the lines between the neighbours with OCR
+     digit-confusion fixups (`20.` misread as `2O.` / `Z0.`) and re-inserts the
+     missed question instead of silently dropping it.
+   - **Answer-key cross-check** — if the paper carries an answer key (`1-B 2-A
+     3-D …`), it lists every question number, so the tool knows exactly how many
+     questions exist. Any number in the key that wasn't detected is reported as a
+     high-confidence miss, and the key also drives gap recovery toward numbers a
+     sequence alone wouldn't reveal (e.g. a question missing from the end).
+   - **Option check** — standard MCQs have options (A)–(D). A crop that captured
+     only some of them (e.g. just the left column `(A)/(C)` of a 2-up grid) is
+     flagged as *likely missing its right-hand options* so you can re-select it.
+
+### Scan quality + AI escalation
+
+For scanned (image) PDFs the OCR tier now **deskews** a tilted page, denoises
+speckle, and uses an adaptive (Otsu) threshold before reading — a small tilt
+otherwise smears Tesseract's line grouping and drops question numbers. It also
+records a **per-page confidence**; in Smart mode with an `ANTHROPIC_API_KEY`
+configured, only the *low-confidence* pages are re-detected by the AI vision tier
+and merged back in, so a few blurry pages get repaired without paying to send the
+whole document to the model. Tune the cutoff with `OCR_MIN_CONFIDENCE` (default
+75).
+
+Stray horizontal dividers (question separators, table borders) drawn as flat
+zero-thickness rules are now removed from crops, while fraction bars (`500/3`)
+and text underlines are preserved as real content.
+3. **Finalize** (`POST /api/finalize`) — combines the kept auto items and your
+   corrected/hand-drawn ones into the final ZIP, re-rendered crisp from the PDF
+   vector source. No re-upload: the source PDF is cached in the job dir by
+   `/analyze`.
+
+Turn Smart mode off to keep the original "type page ranges → straight to ZIP"
+behaviour.
+
+### Online / Offline mode (AI vision)
+
+The UI has an **Online mode (AI)** toggle (top of the "What to crop" panel):
+
+- **On** — the AI vision tier is allowed. The cheap text/OCR tiers still run
+  first; AI is only used as a fallback for hard layouts and for repairing
+  low-confidence scanned pages.
+- **Off** — a fully **offline** run. Only the text and OCR tiers are used, so no
+  network calls are made. Use this when you have no key, no internet, or want
+  guaranteed-local processing.
+
+The toggle auto-disables itself when the server reports no AI key is configured.
+
+**Configuring the AI key.** Two providers are supported (set in `.env`):
+
+```bash
+# OpenRouter (OpenAI-compatible — Gemini / Qwen / Llama / free models)
+AI_PROVIDER=openrouter
+OPENROUTER_API_KEY=sk-or-...
+OPENROUTER_MODEL=nvidia/nemotron-nano-12b-v2-vl:free   # a free model, or a paid one for accuracy
+
+# …or Anthropic
+AI_PROVIDER=anthropic
+ANTHROPIC_API_KEY=sk-ant-...
+CLAUDE_MODEL=claude-opus-4-5
+```
+
+`AI_PROVIDER=auto` (default) prefers OpenRouter when its key is set, else
+Anthropic. With no key configured, the app runs offline-only regardless of the
+toggle.
+
+### Question numbering style
+
+Both `/crop` and `/analyze` accept `marker_style` to control which numbering is
+treated as a real question, so sub-statements, option labels and equation
+numbers in the body aren't mistaken for questions:
+
+- `auto` (default) — prefer explicit `Q` markers; fall back to bare numbers.
+- `q` — only `Q1` / `Q.1` / `Question 1` style markers count.
+- `numbered` — only bare leading numbers (`1.`, `2)`) count.
+
+The UI exposes this as a **Question numbering** dropdown. The chosen style is
+honoured by every detection tier (text, OCR and the AI vision prompt).
+
+## How to run
+
+```bash
+# 1. Install Tesseract (for OCR tier)
+# Mac:   brew install tesseract
+# Linux: sudo apt install tesseract-ocr
+# Win:   https://github.com/UB-Mannheim/tesseract/wiki
+
+# 2. Install dependencies
+pip install -r requirements.txt
+
+# 3. Set up environment (AI key optional)
+cp .env.example .env
+# Edit .env and optionally add ANTHROPIC_API_KEY
+
+# 4. Start server
+uvicorn app.main:app --reload --port 8000
+
+# 5. Open browser
+# http://localhost:8000
+
+# 6. API docs
+# http://localhost:8000/docs
+
+# 7. Run tests
+pytest tests/ -v
+
+# 8. Docker (includes Tesseract automatically)
+docker build -t qpic .
+docker run -p 8000:8000 --env-file .env qpic
+```
+
+## Endpoints
+
+- `POST /api/crop` — upload PDF (`multipart/form-data` field `file`) with optional query params `dpi`, `padding` and `marker_style`
+- `POST /api/analyze` — smart-detect and return regions + page previews + review notes (no ZIP yet)
+- `GET /api/analyze/{job_id}/page/{n}` — page-preview PNG for the manual-crop canvas
+- `POST /api/snap` — tighten a roughly drawn box to the content inside it
+- `POST /api/finalize` — JSON body of reviewed items (auto + manual) → builds the ZIPs
+- `GET /api/crop/download/{job_id}` — download a ZIP. Optional `kind` query param: `combined` (default, questions + solutions → `QScombined.zip`), `questions` (questions only → `Q.zip`), or `solutions` (solutions only → `S.zip`). `question_prefix` / `solution_prefix` set the download filename.
+- `GET /api/health` — health check
+
+## Desktop app (no terminal, no server to start manually)
+
+The same app can be packaged as a native desktop app. The web server still runs,
+but it's hidden inside the app and started/stopped automatically — you just
+double-click an icon and a normal window opens.
+
+```bash
+# macOS / Linux
+./build_desktop.sh
+# -> dist/Qpic.app   (macOS)
+
+# Windows (run in Command Prompt)
+build_desktop.bat
+# -> dist\Qpic\Qpic.exe
+```
+
+Notes:
+- You can only build the macOS `.app` on a Mac and the Windows `.exe` on Windows;
+  one machine can't build the other's binary.
+- The build is **unsigned**, so the first launch on macOS shows an
+  "unidentified developer" warning — right-click the app → **Open** to allow it.
+- Searchable (text) PDFs work fully offline. OCR for scanned PDFs needs Tesseract
+  installed on the user's machine; the AI fallback needs internet + an API key.
+- Cropped images/zips are written to a per-user folder
+  (`~/Library/Application Support/Qpic` on macOS).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
