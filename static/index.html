@@ -3,12 +3,12 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#2a2a2f" id="themeColorMeta" />
+    <meta name="theme-color" content="#14121f" id="themeColorMeta" />
     <title>Qpic</title>
     <link
       rel="icon"
       type="image/svg+xml"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23e3261d'/%3E%3Cstop offset='1' stop-color='%23b3140b'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='15' fill='url(%23g)'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 24v-7a3 3 0 0 1 3-3h7'/%3E%3Cpath d='M50 40v7a3 3 0 0 1-3 3h-7'/%3E%3Ccircle cx='32' cy='32' r='12'/%3E%3Cpath d='M38 38l7 7'/%3E%3C/g%3E%3C/svg%3E"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%234b8dff'/%3E%3Cstop offset='0.5' stop-color='%237c6cff'/%3E%3Cstop offset='1' stop-color='%23b14eff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='15' fill='url(%23g)'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 24v-7a3 3 0 0 1 3-3h7'/%3E%3Cpath d='M50 40v7a3 3 0 0 1-3 3h-7'/%3E%3Ccircle cx='32' cy='32' r='12'/%3E%3Cpath d='M38 38l7 7'/%3E%3C/g%3E%3C/svg%3E"
     />
     <!-- Apply the saved theme before first paint to avoid a flash of the wrong colours. -->
     <script>
@@ -32,14 +32,16 @@
          ============================================================ */
       :root {
         /* shared, theme-independent tokens */
-        /* Adobe Acrobat signature red */
-        --accent: #e3261d;
-        --accent-2: #b3140b;
-        --radius: 12px;
-        --radius-sm: 9px;
-        --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 32%, transparent);
+        /* Signature "Electric Iris" identity — a violet → magenta duo-tone */
+        --accent: #7c6cff;
+        --accent-2: #b14eff;
+        --accent-3: #4b8dff;
+        --accent-grad: linear-gradient(135deg, var(--accent-3) 0%, var(--accent) 48%, var(--accent-2) 100%);
+        --radius: 14px;
+        --radius-sm: 10px;
+        --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 38%, transparent);
         --pdf-bg: #ffffff;
-        --overlay: rgba(3, 6, 12, 0.72);
+        --overlay: rgba(8, 6, 20, 0.74);
         --theme-transition: background-color 220ms ease, border-color 220ms ease, color 220ms ease;
       }
 
@@ -47,76 +49,76 @@
       :root,
       :root[data-theme="dark"] {
         color-scheme: dark;
-        --bg: #1b1b1e;
-        --bg-2: #232327;
-        --panel: #2a2a2f;
-        --panel-2: #232327;
-        --field: #323239;
-        --border: #3c3c45;
-        --border-soft: #34343c;
-        --text: #f1f1f3;
-        --muted: #b0b0ba;
-        --muted-2: #7c7c88;
-        --danger: #f87171;
-        --success: #34d399;
+        --bg: #0c0b15;
+        --bg-2: #14121f;
+        --panel: #181626;
+        --panel-2: #131120;
+        --field: #211e33;
+        --border: #2f2b46;
+        --border-soft: #262339;
+        --text: #f4f3fb;
+        --muted: #b5b1cc;
+        --muted-2: #7d789a;
+        --danger: #fb7185;
+        --success: #2dd4bf;
         --warn: #fbbf24;
-        --switch-knob: #cdd6e6;
-        --shadow: 0 18px 44px -28px rgba(0, 0, 0, 0.85);
-        --appbar: #2a2a2f;
-        --appbar-text: #f1f1f3;
-        --bg-glow-1: 0%;
-        --bg-glow-2: 0%;
+        --switch-knob: #d6d2ec;
+        --shadow: 0 22px 50px -28px rgba(0, 0, 0, 0.92);
+        --appbar: #14121f;
+        --appbar-text: #f4f3fb;
+        --bg-glow-1: 26%;
+        --bg-glow-2: 22%;
       }
 
       /* ---- Light palette ---- */
       :root[data-theme="light"] {
         color-scheme: light;
-        --bg: #f0f0f2;
-        --bg-2: #e7e7ea;
+        --bg: #f4f3fb;
+        --bg-2: #eceaf8;
         --panel: #ffffff;
-        --panel-2: #f7f7f9;
-        --field: #f2f2f5;
-        --border: #d8d8de;
-        --border-soft: #e7e7ec;
-        --text: #1f1f24;
-        --muted: #5a5a64;
-        --muted-2: #8c8c96;
-        --danger: #dc2626;
-        --success: #059669;
+        --panel-2: #f7f6fd;
+        --field: #f1effb;
+        --border: #e0dcf0;
+        --border-soft: #ebe8f7;
+        --text: #1b1830;
+        --muted: #58536f;
+        --muted-2: #8b86a3;
+        --danger: #e11d48;
+        --success: #0d9488;
         --warn: #d97706;
-        --switch-knob: #b9bdca;
-        --shadow: 0 14px 36px -26px rgba(20, 20, 30, 0.35);
-        --overlay: rgba(20, 20, 28, 0.5);
+        --switch-knob: #c3bedb;
+        --shadow: 0 18px 40px -26px rgba(60, 40, 120, 0.32);
+        --overlay: rgba(20, 16, 40, 0.5);
         --appbar: #ffffff;
-        --appbar-text: #1f1f24;
-        --bg-glow-1: 0%;
-        --bg-glow-2: 0%;
+        --appbar-text: #1b1830;
+        --bg-glow-1: 16%;
+        --bg-glow-2: 14%;
       }
 
       /* ---- System: follow the OS when no explicit choice is made ---- */
       @media (prefers-color-scheme: light) {
         :root[data-theme="system"] {
           color-scheme: light;
-          --bg: #f0f0f2;
-          --bg-2: #e7e7ea;
+          --bg: #f4f3fb;
+          --bg-2: #eceaf8;
           --panel: #ffffff;
-          --panel-2: #f7f7f9;
-          --field: #f2f2f5;
-          --border: #d8d8de;
-          --border-soft: #e7e7ec;
-          --text: #1f1f24;
-          --muted: #5a5a64;
-          --muted-2: #8c8c96;
-          --danger: #dc2626;
-          --success: #059669;
+          --panel-2: #f7f6fd;
+          --field: #f1effb;
+          --border: #e0dcf0;
+          --border-soft: #ebe8f7;
+          --text: #1b1830;
+          --muted: #58536f;
+          --muted-2: #8b86a3;
+          --danger: #e11d48;
+          --success: #0d9488;
           --warn: #d97706;
-          --switch-knob: #b9bdca;
-          --shadow: 0 14px 36px -26px rgba(20, 20, 30, 0.35);
-          --overlay: rgba(20, 20, 28, 0.5);
+          --switch-knob: #c3bedb;
+          --shadow: 0 18px 40px -26px rgba(60, 40, 120, 0.32);
+          --overlay: rgba(20, 16, 40, 0.5);
           --appbar: #ffffff;
-          --appbar-text: #1f1f24;
-          --bg-glow-1: 0%;
-          --bg-glow-2: 0%;
+          --appbar-text: #1b1830;
+          --bg-glow-1: 16%;
+          --bg-glow-2: 14%;
         }
       }
 
@@ -132,6 +134,11 @@
         line-height: 1.45;
         color: var(--text);
         background: var(--bg);
+        background-image:
+          radial-gradient(58% 42% at 14% 0%, color-mix(in srgb, var(--accent-3) var(--bg-glow-1), transparent) 0%, transparent 60%),
+          radial-gradient(50% 40% at 92% 8%, color-mix(in srgb, var(--accent-2) var(--bg-glow-2), transparent) 0%, transparent 62%);
+        background-attachment: fixed;
+        background-repeat: no-repeat;
         -webkit-font-smoothing: antialiased;
         text-rendering: optimizeLegibility;
         transition: var(--theme-transition);
@@ -179,7 +186,7 @@
         position: absolute;
         left: 0; right: 0; bottom: -1px;
         height: 2px;
-        background: linear-gradient(90deg, var(--accent), var(--accent-2));
+        background: var(--accent-grad);
       }
       .appbar-inner {
         max-width: 1320px;
@@ -194,17 +201,59 @@
         flex: none;
         width: 38px;
         height: 38px;
-        border-radius: 10px;
+        border-radius: 11px;
         display: grid;
         place-items: center;
-        background: linear-gradient(150deg, var(--accent), var(--accent-2));
-        box-shadow: 0 8px 20px -10px color-mix(in srgb, var(--accent) 80%, transparent);
+        background: var(--accent-grad);
+        box-shadow: 0 8px 22px -8px color-mix(in srgb, var(--accent) 85%, transparent);
         color: #fff;
       }
       .logo svg { width: 20px; height: 20px; display: block; }
       .brand-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
       .brand-name { font-size: 18px; font-weight: 750; letter-spacing: -0.015em; color: var(--appbar-text); }
       .brand-sub { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+      /* Persistent credit footer — visible on every view */
+      .app-credit {
+        text-align: center;
+        padding: 16px 12px 22px;
+        font-size: 12.5px;
+        color: var(--muted-2);
+        letter-spacing: 0.01em;
+      }
+      .app-credit strong {
+        font-weight: 700;
+        background: var(--accent-grad);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        color: var(--accent);
+      }
+      .app-credit .heart {
+        color: var(--accent);
+        -webkit-text-fill-color: var(--accent);
+        font-size: 13px;
+      }
+      .app-credit .credit-name {
+        font-weight: 700;
+        text-decoration: none;
+        background: var(--accent-grad);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        color: var(--accent);
+        border-bottom: 1px solid transparent;
+        transition: border-color 140ms ease, opacity 140ms ease;
+      }
+      .app-credit .credit-name:hover {
+        border-bottom-color: color-mix(in srgb, var(--accent) 55%, transparent);
+        opacity: 0.85;
+      }
+      .app-credit .credit-name:focus-visible {
+        outline: none;
+        border-radius: 3px;
+        box-shadow: var(--ring);
+      }
       .appbar-actions { display: flex; align-items: center; gap: 10px; margin-left: auto; }
 
       @media (max-width: 720px) {
@@ -513,7 +562,7 @@
       input[type="range"]::-webkit-slider-thumb {
         -webkit-appearance: none; appearance: none;
         width: 17px; height: 17px; border-radius: 50%;
-        background: linear-gradient(180deg, var(--accent), var(--accent-2));
+        background: var(--accent-grad);
         border: 2px solid #fff; cursor: pointer;
         box-shadow: 0 2px 6px rgba(0,0,0,0.4);
       }
@@ -552,7 +601,7 @@
         transition: transform 160ms ease, background 160ms ease;
         box-shadow: 0 2px 5px rgba(0,0,0,0.35);
       }
-      .switch-card.on .switch { background: linear-gradient(180deg, var(--accent), var(--accent-2)); border-color: transparent; }
+      .switch-card.on .switch { background: var(--accent-grad); border-color: transparent; }
       .switch-card.on .switch::after { transform: translate(18px, -50%); background: #fff; }
       .switch-card.disabled { opacity: 0.5; cursor: not-allowed; }
       .switch-card.disabled .switch { cursor: not-allowed; }
@@ -576,13 +625,13 @@
         width: 100%;
         border-radius: var(--radius-sm);
         border: 1px solid transparent;
-        background: linear-gradient(180deg, var(--accent), var(--accent-2));
+        background: var(--accent-grad);
         color: #fff;
         padding: 13px 18px;
         font-size: 14.5px; font-weight: 700; font-family: inherit;
         cursor: pointer;
         display: flex; align-items: center; justify-content: center; gap: 9px;
-        box-shadow: 0 12px 26px -14px color-mix(in srgb, var(--accent) 85%, transparent);
+        box-shadow: 0 14px 30px -12px color-mix(in srgb, var(--accent) 85%, transparent);
         transition: transform 120ms ease, filter 120ms ease, box-shadow 120ms ease;
       }
       .btn-primary:hover:not(:disabled) {
@@ -708,7 +757,7 @@
       .modal-head .head-icon {
         flex: none; width: 30px; height: 30px; border-radius: 9px;
         display: grid; place-items: center; color: #fff;
-        background: linear-gradient(150deg, var(--accent), var(--accent-2));
+        background: var(--accent-grad);
         box-shadow: 0 8px 18px -10px color-mix(in srgb, var(--accent) 80%, transparent);
       }
       .modal-head .head-icon svg { width: 16px; height: 16px; }
@@ -1277,6 +1326,13 @@
       <!-- ============ END RENAME BATCH TOOL ============ -->
     </div>
 
+    <!-- ---------- Persistent credit footer ---------- -->
+    <footer class="app-credit" aria-label="Credit">
+      Built by
+      <a class="credit-name" href="https://www.linkedin.com/in/aniketmishra0/" target="_blank" rel="noopener noreferrer">Aniket Mishra</a>
+      · Qpic
+    </footer>
+
     <!-- ---------- Review + manual-crop modal ---------- -->
     <div class="modal-overlay" id="reviewModal" role="dialog" aria-modal="true" aria-labelledby="reviewTitle">
       <div class="modal">
@@ -1402,7 +1458,7 @@
         function syncMeta(choice) {
           const eff = effectiveTheme(choice);
           // Match the app bar so the mobile browser chrome blends in.
-          metaThemeColor.setAttribute('content', eff === 'light' ? '#ffffff' : '#2a2a2f');
+          metaThemeColor.setAttribute('content', eff === 'light' ? '#ffffff' : '#14121f');
         }
 
         function syncButtons(choice) {
