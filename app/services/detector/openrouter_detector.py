@@ -94,8 +94,10 @@ class OpenRouterDetector:
             async def _detect_page(idx: int) -> list[DetectedQuestion]:
                 page_no = idx + 1
                 async with semaphore:
+                    # Lazy page views render on access; do it off the event loop.
+                    img = await asyncio.to_thread(lambda i=idx: page_images[i])
                     return await self._detect_batch(
-                        client, [page_images[idx]], page_no, settings, style_hint
+                        client, [img], page_no, settings, style_hint
                     )
 
             results = await asyncio.gather(

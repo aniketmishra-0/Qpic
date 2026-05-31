@@ -51,8 +51,9 @@ def _build_window(url: str):
 
     from PySide6.QtCore import Qt
     from PySide6.QtGui import QKeySequence, QShortcut
+    from PySide6.QtWebEngineCore import QWebEngineDownloadRequest
     from PySide6.QtWebEngineWidgets import QWebEngineView
-    from PySide6.QtWidgets import QMainWindow
+    from PySide6.QtWidgets import QFileDialog, QMainWindow
 
     class MainWindow(QMainWindow):
         def __init__(self) -> None:
@@ -65,6 +66,15 @@ def _build_window(url: str):
             self.view.load(url)  # QUrl-coercible str
             self.setCentralWidget(self.view)
 
+            # QWebEngineView has no built-in download manager, so a plain
+            # `<a download>` or a `blob:` link would silently save nothing.
+            # Catch every download request and route it through a native
+            # "Save As" dialog instead.
+            self.view.page().profile().downloadRequested.connect(self._on_download)
+
+            # In-app Help menu (no external links — just the built-in guide).
+            self._build_help_menu()
+
             # Familiar zoom shortcuts (Ctrl/Cmd +/-/0), mirroring a browser.
             mod = Qt.ControlModifier
             for keys, fn in (
@@ -74,6 +84,54 @@ def _build_window(url: str):
                 (QKeySequence("Ctrl+0"), self._zoom_reset),
             ):
                 QShortcut(keys, self, activated=fn)
+
+        def _build_help_menu(self) -> None:
+            """Add a Help menu whose items only open the in-app walkthrough.
+
+            Each action drives the page's existing "How to Use" modal by
+            clicking the elements the web UI already wires up — nothing here
+            leaves the app (no website links, no update checks).
+            """
+
+            menu = self.menuBar().addMenu("Help")
+
+            act_guide = menu.addAction("How to Use Qpic")
+            act_guide.setShortcut(QKeySequence("Ctrl+?"))
+            act_guide.triggered.connect(lambda: self._open_help(None))
+
+            menu.addSeparator()
+            menu.addAction("How to Crop").triggered.connect(
+                lambda: self._open_help("crop")
+            )
+            menu.addAction("How to Rename Batch").triggered.connect(
+                lambda: self._open_help("rename")
+            )
+
+        def _open_help(self, tab_key: "str | None") -> None:
+            """Open the in-app How-to-Use modal, optionally on a given tab."""
+
+            js = "var b=document.getElementById('howToBtn'); if(b)b.click();"
+            if tab_key:
+                js += (
+                    "var t=document.querySelector("
+                    f"'.ht-tab[data-ht-tab=\"{tab_key}\"]'); if(t)t.click();"
+                )
+            self.view.page().runJavaScript(js)
+
+        def _on_download(self, download: "QWebEngineDownloadRequest") -> None:
+            """Pop a native Save-As dialog and write the downloaded bytes."""
+
+            suggested = download.suggestedFileName() or "download.zip"
+            target, _ = QFileDialog.getSaveFileName(self, "Save", suggested)
+            if not target:
+                download.cancel()
+                return
+
+            # PySide6 6.x splits the destination into a directory + filename.
+            directory, _, filename = target.rpartition("/")
+            download.setDownloadDirectory(directory or ".")
+            download.setDownloadFileName(filename or suggested)
+            download.accept()
 
         def _zoom_in(self) -> None:
             self.view.setZoomFactor(min(self.view.zoomFactor() + 0.1, 3.0))

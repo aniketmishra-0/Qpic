@@ -37,6 +37,7 @@ class DetectedQuestion(BaseModel):
     segments: list[QuestionSegment]
     is_solution: bool = False
     option_labels: str = ""
+    source: Literal["auto", "manual"] = "auto"
 
 class CropResponse(BaseModel):
     """Response after creating a crop job.
@@ -130,11 +131,18 @@ class SnapResponse(BaseModel):
 
 
 class FinalizeItem(BaseModel):
-    """One item to crop in the finalize step (auto-kept or manually drawn)."""
+    """One item to crop in the finalize step (auto-kept or manually drawn).
+
+    ``source`` mirrors the review item's origin: ``"manual"`` for boxes the user
+    drew/re-selected by hand, ``"auto"`` for kept pipeline detections. Finalize
+    uses it to apply manual-only post-processing (content left-alignment of
+    stitched column-split parts) without touching auto crops.
+    """
 
     q_num: str
     is_solution: bool = False
     segments: list[QuestionSegment]
+    source: Literal["auto", "manual"] = "auto"
 
 
 class FinalizeRequest(BaseModel):
@@ -175,3 +183,47 @@ class RenamePreviewResponse(BaseModel):
 
     count: int
     items: list[RenamePlanItem]
+
+
+class PdfImageItem(BaseModel):
+    """One PDF page rendered to a PNG, returned as an inline data URL.
+
+    ``data_url`` is a ready-to-use ``data:image/png;base64,…`` string so the
+    browser can show a thumbnail and turn it back into a File for the rename
+    batch — no extra round-trip to fetch the bytes.
+    """
+
+    name: str
+    data_url: str
+    width: int
+    height: int
+    size: int
+
+
+class PdfToImagesResponse(BaseModel):
+    """All pages of an uploaded PDF, rasterised to PNG images."""
+
+    count: int
+    images: list[PdfImageItem]
+
+
+class RenameSessionResponse(BaseModel):
+    """A freshly created upload session for a large rename batch."""
+
+    session_id: str
+
+
+class RenameUploadResponse(BaseModel):
+    """Acknowledges a chunk of files appended to a rename session."""
+
+    session_id: str
+    received: int  # files accepted in this request
+    total: int  # files staged in the session so far
+
+
+class RenameFinalizeResponse(BaseModel):
+    """The packed ZIP is ready; ``download_url`` streams it to the client."""
+
+    session_id: str
+    count: int
+    download_url: str

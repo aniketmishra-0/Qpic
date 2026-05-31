@@ -2,13 +2,14 @@
 
 This powers the standalone "Rename Batch" tool: a user uploads any number of
 images, picks a naming pattern, and downloads a ZIP of the renamed files. The
-image bytes are never re-encoded — only the filename changes — so every file
-keeps its exact original format (a ``.png`` stays a PNG, a ``.jpg`` stays a
-JPEG, byte-for-byte).
+image bytes are normally copied verbatim — only the filename changes — so every
+file keeps its exact original format. When the user picks an explicit output
+format (PNG/JPG/WEBP) the bytes are re-encoded to match.
 """
 
 from __future__ import annotations
 
+import io
 import logging
 import re
 import zipfile
@@ -124,6 +125,95 @@ def plan_renames(
     return out
 
 
+# Output formats the user may force. "original" keeps each file's own format
+# (bytes copied verbatim); the rest re-encode every image to that format.
+OUTPUT_FORMATS = {"original", "png", "jpg", "jpeg", "webp"}
+
+# Maps a chosen output format to (file extension, PIL save format).
+_FORMAT_SPEC = {
+    "png": ("png", "PNG"),
+    "jpg": ("jpg", "JPEG"),
+    "jpeg": ("jpg", "JPEG"),
+    "webp": ("webp", "WEBP"),
+}
+
+
+def _sanitize_stem(stem: str, fallback: str) -> str:
+    """Strip filesystem-unsafe characters from a name stem."""
+
+    cleaned = re.sub(r'[\\/:*?"<>|]+', "_", str(stem or "")).strip()
+    return cleaned or fallback
+
+
+def plan_output_names(
+    original_names: list[str],
+    *,
+    pattern: str,
+    start: int = 1,
+    padding: int = 0,
+    explicit_stems: "list[str] | None" = None,
+    output_format: str = "original",
+) -> list[str]:
+    """Return final output filenames, honouring format + explicit stems.
+
+    When ``explicit_stems`` is given (one entry per file, no extension) those
+    names are used directly — this is how the front-end's variable tokens
+    (``(name)``, ``(width)``, ``(date)`` …) reach the ZIP. Otherwise names are
+    built from ``pattern``/``start``/``padding`` exactly as before.
+
+    The extension is decided by ``output_format``: ``"original"`` keeps each
+    file's own extension, anything else forces the matching one (so a JPG export
+    of ``photo.png`` becomes ``photo.jpg``). Collisions get ``_2``, ``_3`` …
+    """
+
+    fmt = (output_format or "original").strip().lower()
+    forced_ext = _FORMAT_SPEC.get(fmt, (None, None))[0]
+
+    # Stems either come from the caller (variables) or the pattern planner.
+    if explicit_stems is not None and len(explicit_stems) == len(original_names):
+        stems = [
+            _sanitize_stem(s, str(start + i))
+            for i, s in enumerate(explicit_stems)
+        ]
+    else:
+        planned = plan_renames(
+            original_names, pattern=pattern, start=start, padding=padding
+        )
+        stems = [split_extension(n)[0] for n in planned]
+
+    used: dict[str, int] = {}
+    out: list[str] = []
+    for original, stem in zip(original_names, stems):
+        ext = forced_ext if forced_ext else split_extension(original)[1]
+        name = f"{stem}.{ext}" if ext else stem
+        if name in used:
+            used[name] += 1
+            name = f"{stem}_{used[name]}.{ext}" if ext else f"{stem}_{used[name]}"
+        else:
+            used[name] = 1
+        out.append(name)
+    return out
+
+
+def _reencode(raw: bytes, save_format: str, *, jpg_quality: int = 90) -> bytes:
+    """Re-encode image bytes to ``save_format`` (PNG/JPEG/WEBP)."""
+
+    from PIL import Image
+
+    with Image.open(io.BytesIO(raw)) as img:
+        out = io.BytesIO()
+        if save_format == "JPEG":
+            img = img.convert("RGB")
+            img.save(out, format="JPEG", quality=int(jpg_quality))
+        elif save_format == "WEBP":
+            img.save(out, format="WEBP", quality=int(jpg_quality))
+        else:  # PNG
+            if img.mode in ("P", "CMYK"):
+                img = img.convert("RGBA" if img.mode == "P" else "RGB")
+            img.save(out, format="PNG")
+        return out.getvalue()
+
+
 def write_rename_zip(
     zip_path: Path,
     files: list[tuple[str, bytes]],
@@ -131,21 +221,108 @@ def write_rename_zip(
     pattern: str,
     start: int = 1,
     padding: int = 0,
+    explicit_stems: "list[str] | None" = None,
+    output_format: str = "original",
+    jpg_quality: int = 90,
 ) -> int:
     """Write a ZIP of renamed images and return the count written.
 
-    ``files`` is a list of ``(original_name, raw_bytes)``; the bytes are written
-    verbatim under the new name, so the encoded format is untouched.
+    ``files`` is a list of ``(original_name, raw_bytes)``. With
+    ``output_format="original"`` the bytes are written verbatim under the new
+    name. Any other format re-encodes each image so a mixed batch comes out as a
+    single, consistent format.
     """
 
     zip_path.parent.mkdir(parents=True, exist_ok=True)
-    new_names = plan_renames(
-        [f[0] for f in files], pattern=pattern, start=start, padding=padding
+    fmt = (output_format or "original").strip().lower()
+    save_format = _FORMAT_SPEC.get(fmt, (None, None))[1]
+
+    new_names = plan_output_names(
+        [f[0] for f in files],
+        pattern=pattern,
+        start=start,
+        padding=padding,
+        explicit_stems=explicit_stems,
+        output_format=fmt,
     )
 
     with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         for (original_name, raw), new_name in zip(files, new_names):
-            zf.writestr(new_name, raw)
+            data = raw
+            if save_format is not None:
+                try:
+                    data = _reencode(raw, save_format, jpg_quality=jpg_quality)
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning(
+                        "reencode_failed name=%s error=%s — writing original bytes",
+                        original_name,
+                        str(exc),
+                    )
+                    data = raw
+            zf.writestr(new_name, data)
 
-    logger.info("created_rename_zip=%s files=%s", zip_path.name, len(files))
+    logger.info(
+        "created_rename_zip=%s files=%s format=%s", zip_path.name, len(files), fmt
+    )
     return len(files)
+
+
+def write_rename_zip_from_paths(
+    zip_path: Path,
+    entries: "list[tuple[str, Path]]",
+    *,
+    pattern: str,
+    start: int = 1,
+    padding: int = 0,
+    explicit_stems: "list[str] | None" = None,
+    output_format: str = "original",
+    jpg_quality: int = 90,
+) -> int:
+    """Like :func:`write_rename_zip` but reads bytes from disk, not memory.
+
+    ``entries`` is a list of ``(original_name, source_path)``. This is the
+    large-batch path: nothing holds every image in memory at once. For the
+    ``"original"`` format each file is streamed straight from disk into the ZIP
+    (``ZipFile.write`` reads in chunks); when re-encoding, only one image is
+    decoded at a time. This lets a multi-gigabyte batch be packed with a flat,
+    near-constant memory footprint.
+    """
+
+    zip_path.parent.mkdir(parents=True, exist_ok=True)
+    fmt = (output_format or "original").strip().lower()
+    save_format = _FORMAT_SPEC.get(fmt, (None, None))[1]
+
+    new_names = plan_output_names(
+        [name for name, _ in entries],
+        pattern=pattern,
+        start=start,
+        padding=padding,
+        explicit_stems=explicit_stems,
+        output_format=fmt,
+    )
+
+    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for (original_name, src_path), new_name in zip(entries, new_names):
+            if save_format is None:
+                # Copy verbatim, streamed from disk — never loads the whole file.
+                zf.write(src_path, arcname=new_name)
+                continue
+            try:
+                raw = Path(src_path).read_bytes()
+                data = _reencode(raw, save_format, jpg_quality=jpg_quality)
+                zf.writestr(new_name, data)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "reencode_failed name=%s error=%s — writing original bytes",
+                    original_name,
+                    str(exc),
+                )
+                zf.write(src_path, arcname=new_name)
+
+    logger.info(
+        "created_rename_zip=%s files=%s format=%s (streamed)",
+        zip_path.name,
+        len(entries),
+        fmt,
+    )
+    return len(entries)

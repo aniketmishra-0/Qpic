@@ -222,8 +222,10 @@ class DetectionPipeline:
             for page in weak_pages:
                 if page < 1 or page > len(page_images):
                     continue
+                # Render off the event loop (lazy view rasterises on access).
+                page_img = await asyncio.to_thread(lambda p=page: page_images[p - 1])
                 single = await self.ai_detector.detect(
-                    [page_images[page - 1]], settings, marker_style=marker_style
+                    [page_img], settings, marker_style=marker_style
                 )
                 for q in single:
                     remapped = [

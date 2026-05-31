@@ -123,25 +123,42 @@
       }
 
       * { box-sizing: border-box; }
-      html, body { height: 100%; }
+      /* `height: 100%` lives on <html> only — giving body a percentage basis
+         without capping body's own box. If body also had height:100% its box
+         would stay one viewport tall while content overflowed it, which breaks
+         `position: sticky` on the app bar (it detaches and scrolls away). */
+      html { height: 100%; }
+      /* Paint the root the same as the page so the macOS/iOS overscroll
+         rubber-band doesn't reveal a white gap above the app bar. */
+      html { background: var(--bg); }
 
       body {
         margin: 0;
         min-height: 100%;
+        overscroll-behavior-y: none;
         font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial,
           "Apple Color Emoji", "Segoe UI Emoji";
         font-size: 14px;
         line-height: 1.45;
         color: var(--text);
         background: var(--bg);
-        background-image:
-          radial-gradient(58% 42% at 14% 0%, color-mix(in srgb, var(--accent-3) var(--bg-glow-1), transparent) 0%, transparent 60%),
-          radial-gradient(50% 40% at 92% 8%, color-mix(in srgb, var(--accent-2) var(--bg-glow-2), transparent) 0%, transparent 62%);
-        background-attachment: fixed;
-        background-repeat: no-repeat;
         -webkit-font-smoothing: antialiased;
         text-rendering: optimizeLegibility;
         transition: var(--theme-transition);
+      }
+      /* Ambient glow lives on its own fixed, composited layer so it stays put
+         while the page scrolls — without the full-viewport repaint jank that
+         `background-attachment: fixed` causes in Chromium/Qt WebEngine. */
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        z-index: -1;
+        pointer-events: none;
+        background-image:
+          radial-gradient(58% 42% at 14% 0%, color-mix(in srgb, var(--accent-3) var(--bg-glow-1), transparent) 0%, transparent 60%),
+          radial-gradient(50% 40% at 92% 8%, color-mix(in srgb, var(--accent-2) var(--bg-glow-2), transparent) 0%, transparent 62%);
+        transition: opacity 220ms ease;
       }
 
       .panel,
@@ -196,19 +213,38 @@
         gap: 18px;
         padding: 10px clamp(14px, 3vw, 26px);
       }
-      .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+      .brand { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1; }
       .logo {
         flex: none;
         width: 38px;
         height: 38px;
-        border-radius: 11px;
+        border-radius: 12px;
         display: grid;
         place-items: center;
         background: var(--accent-grad);
-        box-shadow: 0 8px 22px -8px color-mix(in srgb, var(--accent) 85%, transparent);
+        box-shadow:
+          0 8px 22px -8px color-mix(in srgb, var(--accent) 85%, transparent),
+          inset 0 1px 0 0 rgba(255, 255, 255, 0.28);
         color: #fff;
+        position: relative;
+        overflow: hidden;
+        transition: transform 160ms ease, box-shadow 160ms ease;
       }
-      .logo svg { width: 20px; height: 20px; display: block; }
+      /* Soft sheen across the top of the badge for a little more depth. */
+      .logo::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(160deg, rgba(255, 255, 255, 0.32) 0%, rgba(255, 255, 255, 0) 52%);
+        pointer-events: none;
+      }
+      .brand:hover .logo {
+        transform: translateY(-1px);
+        box-shadow:
+          0 12px 26px -8px color-mix(in srgb, var(--accent) 90%, transparent),
+          inset 0 1px 0 0 rgba(255, 255, 255, 0.32);
+      }
+      .logo svg { width: 20px; height: 20px; display: block; position: relative; z-index: 1; }
       .brand-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
       .brand-name { font-size: 18px; font-weight: 750; letter-spacing: -0.015em; color: var(--appbar-text); }
       .brand-sub { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -254,13 +290,218 @@
         border-radius: 3px;
         box-shadow: var(--ring);
       }
-      .appbar-actions { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+      .appbar-actions { display: flex; align-items: center; gap: 10px; flex: 1; justify-content: flex-end; }
+
+      /* ---------- How to Use button ---------- */
+      .how-to-btn {
+        flex: none;
+        appearance: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 650;
+        color: var(--accent);
+        background: color-mix(in srgb, var(--accent) 10%, var(--field));
+        border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border));
+        border-radius: 9px;
+        padding: 7px 13px;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease, transform 120ms ease;
+      }
+      .how-to-btn svg { width: 15px; height: 15px; flex: none; }
+      .how-to-btn:hover {
+        background: color-mix(in srgb, var(--accent) 18%, var(--field));
+        border-color: color-mix(in srgb, var(--accent) 65%, var(--border));
+        transform: translateY(-1px);
+        box-shadow: 0 4px 14px -4px color-mix(in srgb, var(--accent) 45%, transparent);
+      }
+      .how-to-btn:focus-visible { outline: none; box-shadow: var(--ring); }
+      @media (max-width: 480px) {
+        .how-to-btn span { display: none; }
+        .how-to-btn { padding: 7px 9px; }
+      }
+
+      /* ---------- How to Use modal ---------- */
+      .how-to-modal-overlay {
+        position: fixed; inset: 0; z-index: 55;
+        background: var(--overlay);
+        backdrop-filter: blur(8px);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: clamp(12px, 3vw, 32px);
+        animation: overlayIn 160ms ease;
+      }
+      .how-to-modal-overlay.open { display: flex; }
+      .how-to-modal {
+        width: 100%;
+        max-width: 820px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow), 0 24px 60px -20px rgba(0,0,0,0.7);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        max-height: calc(100vh - 48px);
+        max-height: calc(100dvh - 48px);
+      }
+      .how-to-head {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 20px 0;
+        flex: none;
+        flex-wrap: wrap;
+      }
+      .how-to-head .ht-icon {
+        flex: none;
+        width: 34px; height: 34px;
+        border-radius: 9px;
+        background: color-mix(in srgb, var(--accent) 14%, var(--field));
+        border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+        display: grid; place-items: center;
+        color: var(--accent);
+      }
+      .how-to-head .ht-icon svg { width: 17px; height: 17px; }
+      .how-to-head .ht-title-wrap { flex: 1; min-width: 0; }
+      .how-to-head .ht-title {
+        font-size: 15px;
+        font-weight: 750;
+        color: var(--text);
+        letter-spacing: -0.01em;
+      }
+      .how-to-head .ht-sub {
+        font-size: 11.5px;
+        color: var(--muted-2);
+        margin-top: 1px;
+      }
+      .how-to-close {
+        flex: none;
+        appearance: none;
+        width: 34px; height: 34px;
+        border-radius: 9px;
+        border: 1px solid var(--border);
+        background: var(--field);
+        color: var(--muted);
+        cursor: pointer;
+        display: grid; place-items: center;
+        transition: color 130ms ease, border-color 130ms ease, background 130ms ease;
+      }
+      .how-to-close svg { width: 16px; height: 16px; }
+      .how-to-close:hover { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 55%, var(--border)); background: color-mix(in srgb, var(--danger) 8%, var(--field)); }
+      .how-to-close:focus-visible { outline: none; box-shadow: var(--ring); }
+
+      /* Video tabs strip */
+      .ht-tabs {
+        display: flex;
+        gap: 2px;
+        padding: 10px 20px 0;
+        border-bottom: 1px solid var(--border-soft);
+        flex: none;
+        overflow-x: auto;
+        scrollbar-width: none;
+      }
+      .ht-tabs::-webkit-scrollbar { display: none; }
+      .ht-tab {
+        appearance: none;
+        border: none;
+        background: transparent;
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--muted);
+        padding: 8px 14px 10px;
+        border-radius: 8px 8px 0 0;
+        cursor: pointer;
+        white-space: nowrap;
+        position: relative;
+        transition: color 140ms ease, background 140ms ease;
+      }
+      .ht-tab:hover { color: var(--text); background: color-mix(in srgb, var(--accent) 6%, transparent); }
+      .ht-tab.active { color: var(--accent); font-weight: 700; }
+      .ht-tab.active::after {
+        content: '';
+        position: absolute;
+        left: 0; right: 0; bottom: -1px;
+        height: 2px;
+        background: var(--accent-grad);
+        border-radius: 2px 2px 0 0;
+      }
+      .ht-tab:focus-visible { outline: none; box-shadow: var(--ring); }
+
+      .how-to-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+      /* Tab panels */
+      .ht-panel { display: none; flex-direction: column; gap: 18px; }
+      .ht-panel.active { display: flex; }
+
+      .yt-embed-wrap {
+        position: relative;
+        width: 100%;
+        padding-bottom: 56.25%; /* 16:9 */
+        border-radius: var(--radius-sm);
+        overflow: hidden;
+        background: #000;
+        border: 1px solid var(--border-soft);
+      }
+      .yt-embed-wrap iframe {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        border: none;
+      }
+      .how-to-steps {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .how-to-steps h3 {
+        margin: 0 0 4px;
+        font-size: 13.5px;
+        font-weight: 750;
+        color: var(--text);
+        letter-spacing: -0.01em;
+      }
+      .ht-step {
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+        padding: 11px 14px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border-soft);
+        background: var(--panel-2);
+      }
+      .ht-step-num {
+        flex: none;
+        width: 24px; height: 24px;
+        border-radius: 50%;
+        background: var(--accent-grad);
+        color: #fff;
+        font-size: 12px;
+        font-weight: 750;
+        display: grid; place-items: center;
+        box-shadow: 0 4px 10px -4px color-mix(in srgb, var(--accent) 60%, transparent);
+      }
+      .ht-step-text { flex: 1; min-width: 0; }
+      .ht-step-text strong { display: block; font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+      .ht-step-text span { font-size: 12px; color: var(--muted); line-height: 1.5; }
 
       @media (max-width: 720px) {
         .appbar-inner { flex-wrap: wrap; gap: 10px; }
-        .brand-sub { display: none; }
+        .brand { flex: 0 0 auto; }
         .tool-tabs { order: 3; width: 100%; justify-content: center; }
-        .appbar-actions { margin-left: auto; }
+        .appbar-actions { flex: 0 0 auto; }
       }
 
       /* ---------- Theme switcher (segmented) ---------- */
@@ -410,6 +651,331 @@
       }
       .rename-row .r-del:hover { color: var(--danger); border-color: var(--danger); }
 
+      /* ---------- Rename gallery (thumbnail cards, imgworld-style) ---------- */
+      .rename-toolbar {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .rename-toolbar .rt-fields {
+        display: grid;
+        grid-template-columns: minmax(200px, 1.6fr) minmax(68px, 0.55fr) minmax(68px, 0.55fr) minmax(118px, 0.9fr);
+        gap: 10px;
+        flex: 1;
+        min-width: 0;
+      }
+      @media (max-width: 720px) {
+        .rename-toolbar .rt-fields { grid-template-columns: 1fr 1fr; }
+        .rename-toolbar .rt-action { width: 100%; }
+        .rename-toolbar .rt-action .btn-primary { width: 100%; }
+      }
+      .rename-toolbar .rt-action { flex: none; }
+      .rename-toolbar .rt-action .btn-primary { width: auto; padding: 11px 20px; height: 40px; }
+
+      /* Pattern input + Variables button on one row, dropdown anchored below. */
+      .pattern-wrap { position: relative; }
+      .pattern-row { display: flex; gap: 8px; align-items: stretch; }
+      .pattern-row input { flex: 1; min-width: 0; }
+      .var-btn {
+        flex: none;
+        appearance: none;
+        display: inline-flex; align-items: center; gap: 6px;
+        font-family: inherit; font-size: 12.5px; font-weight: 650;
+        color: var(--accent);
+        background: color-mix(in srgb, var(--accent) 10%, var(--field));
+        border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+        border-radius: var(--radius-sm);
+        padding: 0 12px; height: 38px;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: background 140ms ease, border-color 140ms ease;
+      }
+      .var-btn svg { width: 14px; height: 14px; transition: transform 160ms ease; }
+      .var-btn:hover { background: color-mix(in srgb, var(--accent) 18%, var(--field)); }
+      .var-btn[aria-expanded="true"] svg { transform: rotate(180deg); }
+      .var-btn:focus-visible { outline: none; box-shadow: var(--ring); }
+
+      .var-menu {
+        position: absolute;
+        top: calc(100% + 8px);
+        right: 0;
+        z-index: 25;
+        width: min(440px, calc(100vw - 48px));
+        padding: 12px;
+        border-radius: var(--radius);
+        border: 1px solid var(--border);
+        background: var(--panel);
+        box-shadow: var(--shadow), 0 10px 30px -10px rgba(0,0,0,0.5);
+        display: none;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+      }
+      .var-menu.open { display: grid; animation: overlayIn 140ms ease; }
+      .var-item {
+        appearance: none; text-align: left;
+        display: flex; flex-direction: column; gap: 1px;
+        padding: 8px 10px;
+        border-radius: 9px;
+        border: 1px solid transparent;
+        background: transparent;
+        cursor: pointer;
+        font-family: inherit;
+        transition: background 120ms ease, border-color 120ms ease;
+      }
+      .var-item:hover, .var-item:focus-visible {
+        background: color-mix(in srgb, var(--accent) 14%, var(--field));
+        border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+      }
+      .var-item:focus-visible { outline: none; box-shadow: var(--ring); }
+      .var-item .vi-token {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 12.5px; font-weight: 700; color: var(--text);
+        transition: color 120ms ease;
+      }
+      .var-item:hover .vi-token, .var-item:focus-visible .vi-token { color: var(--accent); }
+      .var-item .vi-desc { font-size: 11px; color: var(--muted-2); }
+      @media (max-width: 480px) { .var-menu { grid-template-columns: 1fr; } }
+
+      /* ---------- Custom themed select (matches the Variables dropdown) ---------- */
+      .custom-select { position: relative; }
+      .cs-trigger {
+        width: 100%;
+        height: 38px;
+        display: flex; align-items: center; justify-content: space-between; gap: 8px;
+        background: var(--field);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 8px 12px;
+        font-size: 13.5px; font-family: inherit;
+        cursor: pointer;
+        transition: border-color 130ms ease, box-shadow 130ms ease;
+      }
+      .cs-trigger:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+      .cs-trigger:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--ring); }
+      .cs-trigger svg { width: 13px; height: 13px; flex: none; color: var(--muted); transition: transform 160ms ease; }
+      .cs-trigger[aria-expanded="true"] { border-color: var(--accent); box-shadow: var(--ring); }
+      .cs-trigger[aria-expanded="true"] svg { transform: rotate(180deg); }
+
+      .cs-menu {
+        position: absolute;
+        top: calc(100% + 8px);
+        left: 0; right: 0;
+        z-index: 25;
+        padding: 6px;
+        border-radius: var(--radius);
+        border: 1px solid var(--border);
+        background: var(--panel);
+        box-shadow: var(--shadow), 0 10px 30px -10px rgba(0,0,0,0.5);
+        display: none;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .cs-menu.open { display: flex; animation: overlayIn 140ms ease; }
+      .cs-option {
+        appearance: none; text-align: left;
+        display: flex; align-items: center; gap: 8px;
+        padding: 8px 10px;
+        border-radius: 9px;
+        border: 1px solid transparent;
+        background: transparent;
+        color: var(--text);
+        cursor: pointer;
+        font-family: inherit; font-size: 13px;
+        transition: background 120ms ease, border-color 120ms ease;
+      }
+      .cs-option:hover { background: var(--field); border-color: var(--border-soft); }
+      .cs-option:focus-visible { outline: none; box-shadow: var(--ring); }
+      .cs-option .cs-check { flex: none; width: 15px; height: 15px; color: var(--accent); opacity: 0; }
+      .cs-option[aria-selected="true"] { color: var(--accent); font-weight: 650; }
+      .cs-option[aria-selected="true"] .cs-check { opacity: 1; }
+
+
+      .rename-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+      }
+      .rename-meta .rm-count { font-size: 13.5px; font-weight: 650; color: var(--text); }
+      .rename-meta .rm-actions { display: flex; gap: 8px; }
+      .rename-meta .rm-btn {
+        appearance: none;
+        display: inline-flex; align-items: center; gap: 6px;
+        font-family: inherit; font-size: 12.5px; font-weight: 600;
+        color: var(--muted);
+        background: var(--field);
+        border: 1px solid var(--border);
+        border-radius: 9px;
+        padding: 7px 12px;
+        cursor: pointer;
+        transition: color 140ms ease, border-color 140ms ease, background 140ms ease;
+      }
+      .rename-meta .rm-btn svg { width: 14px; height: 14px; }
+      .rename-meta .rm-btn:hover { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); }
+      .rename-meta .rm-btn.danger:hover { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 50%, var(--border)); }
+      .rename-meta .rm-btn:focus-visible { outline: none; box-shadow: var(--ring); }
+
+      .rename-gallery {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 12px;
+      }
+      @media (max-width: 480px) { .rename-gallery { grid-template-columns: 1fr; } }
+
+      .img-card {
+        display: flex;
+        gap: 11px;
+        align-items: center;
+        padding: 9px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border-soft);
+        background: var(--panel-2);
+        /* Native virtualization: off-screen cards skip layout/paint/decode, so
+           a gallery of thousands stays smooth. The intrinsic size keeps the
+           scrollbar accurate before a card has ever been rendered. */
+        content-visibility: auto;
+        contain-intrinsic-size: auto 82px;
+        transition: border-color 140ms ease, transform 120ms ease, box-shadow 140ms ease;
+      }
+      .img-card:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); transform: translateY(-1px); }
+      .img-thumb {
+        flex: none;
+        width: 64px; height: 64px;
+        border-radius: 9px;
+        overflow: hidden;
+        background: var(--field);
+        border: 1px solid var(--border-soft);
+        display: grid; place-items: center;
+        cursor: pointer;
+        position: relative;
+      }
+      .img-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+      .img-thumb .thumb-zoom {
+        position: absolute; inset: 0;
+        display: grid; place-items: center;
+        background: color-mix(in srgb, #000 42%, transparent);
+        color: #fff; opacity: 0;
+        transition: opacity 140ms ease;
+      }
+      .img-thumb .thumb-zoom svg { width: 20px; height: 20px; }
+      .img-thumb:hover .thumb-zoom, .img-thumb:focus-visible .thumb-zoom { opacity: 1; }
+      .img-thumb:focus-visible { outline: none; box-shadow: var(--ring); }
+
+      .img-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+      .img-info .ic-old {
+        font-size: 11.5px; color: var(--muted-2);
+        text-decoration: line-through;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .img-info .ic-new {
+        font-size: 13px; font-weight: 650; color: var(--accent);
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+      }
+      .img-info .ic-sub { font-size: 11px; color: var(--muted-2); }
+      .img-info .ic-sub .ic-pdf {
+        color: var(--warn); font-weight: 700; text-transform: uppercase;
+        letter-spacing: 0.03em; font-size: 10px;
+      }
+      .img-card .ic-del {
+        flex: none;
+        width: 30px; height: 30px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--field);
+        color: var(--muted);
+        cursor: pointer;
+        display: grid; place-items: center;
+        transition: color 130ms ease, border-color 130ms ease, background 130ms ease;
+      }
+      .img-card .ic-del svg { width: 15px; height: 15px; }
+      .img-card .ic-del:hover { color: var(--danger); border-color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, var(--field)); }
+      .img-card .ic-del:focus-visible { outline: none; box-shadow: var(--ring); }
+
+      /* ---------- Image lightbox (view one-by-one) ---------- */
+      .lightbox {
+        position: fixed; inset: 0; z-index: 60;
+        background: var(--overlay);
+        backdrop-filter: blur(6px);
+        display: none; flex-direction: column;
+        padding: 0;
+      }
+      .lightbox.open { display: flex; animation: overlayIn 160ms ease; }
+      .lb-bar {
+        display: flex; align-items: center; gap: 12px;
+        padding: 12px clamp(14px, 3vw, 26px);
+        color: #fff;
+        background: color-mix(in srgb, #000 30%, transparent);
+      }
+      .lb-bar .lb-name {
+        flex: 1; min-width: 0;
+        font-size: 14px; font-weight: 650;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .lb-bar .lb-pos { flex: none; font-size: 12.5px; color: rgba(255,255,255,0.72); font-variant-numeric: tabular-nums; }
+      .lb-btn {
+        appearance: none; flex: none;
+        width: 40px; height: 40px; border-radius: 10px;
+        border: 1px solid rgba(255,255,255,0.22);
+        background: rgba(255,255,255,0.08);
+        color: #fff; cursor: pointer;
+        display: grid; place-items: center;
+        transition: background 130ms ease, border-color 130ms ease;
+      }
+      .lb-btn svg { width: 18px; height: 18px; }
+      .lb-btn:hover { background: rgba(255,255,255,0.18); }
+      .lb-btn.danger:hover { background: color-mix(in srgb, var(--danger) 60%, transparent); border-color: var(--danger); }
+      .lb-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(255,255,255,0.4); }
+      .lb-stage {
+        flex: 1; min-height: 0;
+        display: flex; align-items: center; justify-content: center;
+        padding: 18px clamp(8px, 2vw, 22px);
+        position: relative;
+      }
+      /* A constant-size frame so the image always occupies the same box and
+         stays centered — small or large images no longer shift the layout. */
+      .lb-frame {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .lb-stage img {
+        max-width: 100%; max-height: 100%;
+        width: auto; height: auto;
+        object-fit: contain;
+        border-radius: 8px;
+        box-shadow: 0 20px 60px -20px rgba(0,0,0,0.7);
+        background: #fff;
+      }
+      .lb-nav {
+        appearance: none; flex: none;
+        position: absolute;
+        top: 50%; transform: translateY(-50%);
+        z-index: 2;
+        width: 48px; height: 48px; border-radius: 50%;
+        border: 1px solid rgba(255,255,255,0.22);
+        background: rgba(0,0,0,0.35);
+        color: #fff; cursor: pointer;
+        display: grid; place-items: center;
+        transition: background 130ms ease;
+      }
+      .lb-nav.lb-prev { left: clamp(8px, 2vw, 22px); }
+      .lb-nav.lb-next { right: clamp(8px, 2vw, 22px); }
+      .lb-nav svg { width: 22px; height: 22px; }
+      .lb-nav:hover:not(:disabled) { background: rgba(0,0,0,0.6); }
+      .lb-nav:disabled { opacity: 0.3; cursor: not-allowed; }
+      .lb-nav:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(255,255,255,0.4); }
+      @media (max-width: 560px) {
+        .lb-nav { width: 40px; height: 40px; }
+      }
+
       /* ---------- Panel / card ---------- */
       .panel {
         background: linear-gradient(180deg, var(--panel), var(--panel-2));
@@ -492,6 +1058,38 @@
       .dropzone span { color: var(--muted-2); font-size: 12.5px; }
       .dropzone.has-file { border-style: solid; border-color: color-mix(in srgb, var(--success) 45%, var(--border)); }
       .dropzone.has-file .dz-icon { background: color-mix(in srgb, var(--success) 16%, transparent); color: var(--success); }
+      /* "View" + "Clear" buttons shown on the dropzone once a PDF is selected. */
+      .dz-view {
+        position: absolute; top: 10px; right: 10px;
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 7px 12px; border-radius: 999px;
+        border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+        background: color-mix(in srgb, var(--accent) 12%, var(--field));
+        color: var(--accent); font-family: inherit; font-size: 12.5px; font-weight: 650;
+        cursor: pointer; z-index: 2;
+        transition: background 140ms ease, border-color 140ms ease, transform 120ms ease;
+      }
+      .dz-view svg { width: 15px; height: 15px; }
+      .dz-view:hover { background: color-mix(in srgb, var(--accent) 20%, var(--field)); transform: translateY(-1px); }
+      .dz-view:focus-visible { outline: none; box-shadow: var(--ring); }
+
+      /* Clear button sits to the left of View inside the dropzone */
+      .dropzone .clear-btn {
+        position: absolute; top: 10px; right: calc(10px + 72px + 8px);
+        z-index: 2;
+        border-radius: 999px;
+        padding: 7px 12px;
+        font-size: 12.5px;
+      }
+      /* Ensure hidden attribute works even when display is set by other rules */
+      [hidden] { display: none !important; }
+
+      /* ---------- PDF preview modal ---------- */
+      /* `dvh` tracks the *visible* viewport so mobile browser chrome (the
+         address bar) can't crop the modal; `vh` is the desktop fallback. */
+      .pdf-modal { width: 100vw; max-width: none; height: 100vh; height: 100dvh; max-height: 100vh; max-height: 100dvh; border-radius: 0; border: none; }
+      .pdf-modal .modal-body { display: block; padding: 0; overflow: hidden; }
+      .pdf-frame { width: 100%; height: 100%; border: none; background: var(--field); }
 
       /* ---------- Grid / fields ---------- */
       .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
@@ -716,6 +1314,13 @@
       .actions a.download-secondary:hover { background: color-mix(in srgb, var(--success) 12%, var(--field)); border-color: var(--success); }
       .actions a svg, .actions .btn-secondary svg { width: 17px; height: 17px; }
 
+      /* ---------- Manual crop explainer ---------- */
+      .manual-explain p { margin: 0 0 12px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+      .manual-steps { margin: 0; padding-left: 18px; color: var(--muted); font-size: 13px; line-height: 1.7; }
+      .manual-steps li { margin-bottom: 4px; }
+      .manual-steps strong { color: var(--text); }
+      .manual-steps em { color: var(--accent); font-style: normal; font-weight: 600; }
+
       /* ---------- Review / manual-crop modal ---------- */
       .modal-overlay {
         position: fixed; inset: 0; z-index: 50;
@@ -726,7 +1331,7 @@
       }
       .modal-overlay.open { display: flex; animation: overlayIn 180ms ease; }
       .modal {
-        width: 100%; max-width: 1240px; height: 94vh; max-height: 94vh;
+        width: 100%; max-width: 1240px; height: 94vh; height: 94dvh; max-height: 94vh; max-height: 94dvh;
         display: flex; flex-direction: column;
         background: linear-gradient(180deg, var(--panel), var(--panel-2));
         border: 1px solid var(--border);
@@ -738,7 +1343,7 @@
       /* Fullscreen: the modal fills the whole viewport. */
       .modal-overlay.fullscreen { padding: 0; }
       .modal-overlay.fullscreen .modal {
-        max-width: none; width: 100vw; height: 100vh; max-height: 100vh;
+        max-width: none; width: 100vw; height: 100vh; height: 100dvh; max-height: 100vh; max-height: 100dvh;
         border-radius: 0; border: none;
       }
       @keyframes overlayIn { from { opacity: 0; } to { opacity: 1; } }
@@ -776,9 +1381,9 @@
       @media (max-width: 920px) { .modal-body { grid-template-columns: minmax(0, 1fr) 300px; } }
       @media (max-width: 820px) {
         .modal-body { grid-template-columns: 1fr; grid-template-rows: none; overflow: auto; }
-        .modal { height: 96vh; max-height: 96vh; }
+        .modal { height: 96vh; height: 96dvh; max-height: 96vh; max-height: 96dvh; }
         .review-side { overflow: visible; }
-        .canvas-stage { min-height: 50vh; }
+        .canvas-stage { min-height: 50vh; min-height: 50dvh; }
       }
 
       .notes { display: flex; flex-direction: column; gap: 8px; }
@@ -798,6 +1403,21 @@
         flex: none; align-self: center; border-radius: 6px; cursor: pointer;
         border: 1px solid var(--accent); background: var(--accent); color: #fff;
         font-family: inherit; font-size: 11px; font-weight: 700; padding: 4px 9px;
+      }
+
+      /* "Items to Fix" summary header above the notes list */
+      .notes-head {
+        display: flex; align-items: center; gap: 8px;
+        margin-bottom: 8px; padding: 8px 11px; border-radius: 9px;
+        border: 1px solid color-mix(in srgb, var(--danger) 40%, var(--border));
+        background: color-mix(in srgb, var(--danger) 10%, var(--panel-2));
+      }
+      .notes-head .nh-title { font-size: 12.5px; font-weight: 700; color: var(--text); }
+      .notes-head .nh-count {
+        margin-left: auto; min-width: 22px; height: 22px; padding: 0 7px;
+        display: grid; place-items: center; border-radius: 999px;
+        background: var(--danger); color: #fff;
+        font-size: 12px; font-weight: 800; font-variant-numeric: tabular-nums;
       }
 
       .canvas-wrap { display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 0; height: 100%; }
@@ -971,6 +1591,28 @@
       }
       .item-row .it-fix:hover { border-color: var(--accent); }
       .item-row.editing { border-color: var(--accent); box-shadow: var(--ring); }
+
+      /* ---- Per-part list for multi-box items (reorder the stitch order) ---- */
+      .item-parts {
+        display: flex; flex-direction: column; gap: 4px;
+        margin: 2px 0 6px; padding: 6px 8px;
+        border: 1px dashed var(--border); border-radius: 8px; background: var(--panel-2);
+      }
+      .item-parts .ip-head { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted-2); }
+      .part-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+      .part-row .pr-letter {
+        flex: none; width: 20px; height: 20px; border-radius: 5px;
+        display: grid; place-items: center; font-weight: 700; font-size: 11px;
+        background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent);
+      }
+      .part-row .pr-desc { flex: 1; min-width: 0; color: var(--muted); }
+      .part-row .pr-move {
+        flex: none; width: 22px; height: 22px; border-radius: 5px; cursor: pointer;
+        border: 1px solid var(--border); background: var(--field); color: var(--text);
+        display: grid; place-items: center; font-size: 11px; line-height: 1;
+      }
+      .part-row .pr-move:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+      .part-row .pr-move:disabled { opacity: 0.35; cursor: default; }
       .modal-foot {
         display: flex; gap: 11px; padding: 14px 20px; border-top: 1px solid var(--border-soft);
         background: color-mix(in srgb, var(--accent) 3%, var(--panel-2));
@@ -1029,6 +1671,84 @@
       .modal-body::-webkit-scrollbar-track,
       .item-list::-webkit-scrollbar-track,
       .canvas-stage::-webkit-scrollbar-track { background: transparent; }
+
+      /* ============================================================
+         Responsive refinements — make every layout work from small
+         phones through to large desktop monitors.
+         ============================================================ */
+
+      /* ---- Large desktops: let the working area breathe ---- */
+      @media (min-width: 1500px) {
+        .container { max-width: 1480px; }
+        .appbar-inner { max-width: 1480px; }
+      }
+
+      /* ---- Tablets / small laptops: keep the two-column area usable ---- */
+      @media (max-width: 1024px) {
+        .modal { max-width: 96vw; }
+      }
+
+      /* ---- Phones (portrait): tighten spacing, stack the gallery ---- */
+      @media (min-width: 481px) and (max-width: 600px) {
+        .rename-gallery { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+      }
+      @media (max-width: 600px) {
+        body { font-size: 13.5px; }
+        .container { padding: 14px 14px 24px; }
+        .modal-overlay { padding: 0; }
+        .modal { height: 100vh; height: 100dvh; max-height: 100vh; max-height: 100dvh; border-radius: 0; border: none; max-width: none; }
+        .modal-head { padding: 12px 14px; }
+        .modal-head h2 { font-size: 15px; }
+        .modal-body { padding: 12px 14px; }
+        .modal-foot { padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px)); }
+        .how-to-body { padding: 16px; }
+        /* Keep the in-dropzone Clear/View pills from colliding on narrow cards. */
+        .dropzone .clear-btn { right: calc(10px + 64px + 6px); }
+      }
+
+      /* ---- Small phones: shrink chrome so nothing overflows ---- */
+      @media (max-width: 400px) {
+        .container { padding: 12px 11px 22px; }
+        .appbar-inner { padding: 9px 12px; gap: 8px; }
+        .brand-name { font-size: 16px; }
+        .tool-tab { padding: 7px 11px; font-size: 12.5px; }
+        .tool-tab svg { width: 14px; height: 14px; }
+        .canvas-toolbar { gap: 6px; }
+        .canvas-toolbar .pager button { padding: 7px 9px; }
+        .modal-foot { flex-wrap: wrap; }
+        .modal-foot .btn-ghost { flex: 1; }
+        .draw-controls { grid-template-columns: 1fr; }
+      }
+
+      /* ---- Very small phones: avoid the tab labels wrapping the bar ---- */
+      @media (max-width: 340px) {
+        .tool-tabs { gap: 2px; padding: 3px; }
+        .tool-tab { padding: 7px 8px; }
+      }
+
+      /* ---- Phones in landscape (short viewports): the stacked review
+         modal would otherwise hide the canvas behind the controls, so go
+         back to side-by-side and trim vertical chrome. ---- */
+      @media (max-height: 560px) and (orientation: landscape) {
+        .modal-body { grid-template-columns: minmax(0, 1fr) 280px; grid-template-rows: minmax(0, 1fr); overflow: hidden; }
+        .review-side { overflow: auto; }
+        .canvas-stage { min-height: 0; }
+        .modal-head { padding: 8px 14px; }
+        .modal-foot { padding: 8px 14px; }
+        .how-to-modal { max-height: calc(100dvh - 16px); }
+      }
+
+      /* ---- Coarse pointers (touch): enlarge tap targets for fingers ---- */
+      @media (pointer: coarse) {
+        .canvas-toolbar button,
+        .zoom-cluster button,
+        .item-row .it-del,
+        .item-row .it-fix,
+        .rename-row .r-del { min-height: 38px; }
+        .box-handle { width: 20px; height: 20px; }
+        .box-del { width: 24px; height: 24px; font-size: 12px; }
+        .lb-nav { width: 52px; height: 52px; }
+      }
     </style>
   </head>
   <body>
@@ -1048,7 +1768,6 @@
           </div>
           <div class="brand-text">
             <span class="brand-name">Qpic</span>
-            <span class="brand-sub" id="headerSub">Upload a PDF → smart-detect questions → download cropped ZIP</span>
           </div>
         </div>
 
@@ -1056,7 +1775,11 @@
         <div class="tool-tabs" id="toolTabs" role="tablist" aria-label="Tools">
           <button type="button" class="tool-tab active" data-tool="crop" role="tab" aria-selected="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg>
-            <span>Crop</span>
+            <span>Auto Crop</span>
+          </button>
+          <button type="button" class="tool-tab" data-tool="manual" role="tab" aria-selected="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
+            <span>Manual Crop</span>
           </button>
           <button type="button" class="tool-tab" data-tool="rename" role="tab" aria-selected="false">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
@@ -1065,9 +1788,12 @@
         </div>
 
         <div class="appbar-actions">
-          <button type="button" class="clear-btn" id="clearBtn" title="Clear everything in this tool" aria-label="Clear">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
-            <span>Clear</span>
+          <button type="button" class="how-to-btn" id="howToBtn" aria-label="How to use Qpic">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <polygon points="10 8 16 12 10 16 10 8" fill="currentColor" stroke="none"/>
+            </svg>
+            <span>How to Use</span>
           </button>
           <div class="theme-switch" id="themeSwitch" role="group" aria-label="Color theme">
             <button type="button" data-theme-value="light" title="Light" aria-label="Light theme" aria-pressed="false">
@@ -1096,12 +1822,22 @@
       <!-- ============ CROP TOOL ============ -->
       <div id="cropView">
 
-      <input id="fileInput" type="file" accept="application/pdf" hidden />
+      <input id="fileInput" type="file" accept="application/pdf" style="position:absolute;width:0;height:0;opacity:0;overflow:hidden;pointer-events:none;" tabindex="-1" aria-hidden="true" />
 
       <!-- SOURCE PDF -->
       <div class="card">
         <div class="section-title">Source PDF</div>
         <div id="dropzone" class="dropzone" role="button" tabindex="0" aria-label="Upload a PDF">
+          <button id="viewPdfBtn" class="dz-view" type="button" title="View PDF" aria-label="View selected PDF" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" />
+            </svg>
+            <span>View</span>
+          </button>
+          <button type="button" class="clear-btn" id="clearBtn" title="Clear everything in this tool" aria-label="Clear" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+            <span>Clear</span>
+          </button>
           <div class="dz-icon" id="dzIcon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -1164,13 +1900,13 @@
                 <input id="smartMode" type="checkbox" checked role="switch" />
               </label>
 
-              <label class="switch-card on" id="onlineCard" for="onlineMode">
+              <label class="switch-card" id="onlineCard" for="onlineMode">
                 <span class="sw-text">
                   <span class="sw-title">Online mode (AI)</span>
                   <span class="sw-sub" id="onlineSub">Use AI vision for hard/scanned pages</span>
                 </span>
                 <span class="switch" aria-hidden="true"></span>
-                <input id="onlineMode" type="checkbox" checked role="switch" />
+                <input id="onlineMode" type="checkbox" role="switch" />
               </label>
 
               <div class="field" style="margin-top:14px;">
@@ -1256,34 +1992,159 @@
       </div>
       <!-- ============ END CROP TOOL ============ -->
 
+      <!-- ============ MANUAL CROP TOOL ============ -->
+      <div id="manualView" style="display:none;">
+
+        <input id="manualFileInput" type="file" accept="application/pdf" style="position:absolute;width:0;height:0;opacity:0;overflow:hidden;pointer-events:none;" tabindex="-1" aria-hidden="true" />
+
+        <!-- SOURCE PDF -->
+        <div class="card">
+          <div class="section-title">Source PDF</div>
+          <div id="manualDropzone" class="dropzone" role="button" tabindex="0" aria-label="Upload a PDF">
+            <button id="manualViewPdfBtn" class="dz-view" type="button" title="View PDF" aria-label="View selected PDF" hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" />
+              </svg>
+              <span>View</span>
+            </button>
+            <button type="button" class="clear-btn" id="manualClearBtn" title="Clear everything in this tool" aria-label="Clear" hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+              <span>Clear</span>
+            </button>
+            <div class="dz-icon" id="manualDzIcon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+            </div>
+            <div class="dz-text">
+              <strong id="manualFileLabel">Drop PDF here or click to browse</strong>
+              <span>PDF only • Max 50MB • Up to 100 pages</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="cols">
+          <!-- LEFT CARD: HOW MANUAL CROP WORKS -->
+          <div class="card col">
+            <div class="section">
+              <div class="section-title">Manual crop</div>
+              <div class="manual-explain">
+                <p>No auto-detection runs here. Open the PDF and draw a box around every question or solution yourself, then combine and download.</p>
+                <ol class="manual-steps">
+                  <li>Upload a PDF and click <strong>Open &amp; Crop</strong>.</li>
+                  <li>Flip through pages and drag a box around each item.</li>
+                  <li>Pick <em>Question</em> or <em>Solution</em> before drawing; numbering continues automatically.</li>
+                  <li>Hit <strong>Combine &amp; Download</strong> to get your ZIP.</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+
+          <!-- RIGHT CARD: OUTPUT OPTIONS -->
+          <div class="card col">
+            <div class="section">
+              <div class="section-title">Output options</div>
+              <div class="grid">
+                <div class="field">
+                  <span class="field-label">Format</span>
+                  <select id="manualImageFormat">
+                    <option value="png" selected>PNG — lossless</option>
+                    <option value="jpg">JPG — smaller</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <span class="field-label">DPI</span>
+                  <select id="manualDpi">
+                    <option value="150">150</option>
+                    <option value="200" selected>200</option>
+                    <option value="250">250</option>
+                  </select>
+                </div>
+
+                <div class="field col-span-2" id="manualQualityField" style="display:none;">
+                  <span class="field-label">JPG quality <span class="field-hint" style="font-weight:500;">(lower = smaller file, more loss)</span></span>
+                  <div class="range-row">
+                    <input id="manualJpgQuality" type="range" min="40" max="100" step="1" value="90" />
+                    <span class="range-val" id="manualJpgQualityVal">90</span>
+                  </div>
+                </div>
+
+                <div class="field">
+                  <span class="field-label">Question prefix</span>
+                  <input id="manualQuestionPrefix" type="text" value="Q" placeholder="Q" maxlength="10" />
+                </div>
+                <div class="field">
+                  <span class="field-label">Solution prefix</span>
+                  <input id="manualSolutionPrefix" type="text" value="S" placeholder="S" maxlength="10" />
+                </div>
+
+                <div class="field col-span-2">
+                  <span class="field-label">Start number</span>
+                  <input id="manualStartNumber" type="number" value="1" min="1" max="100000" />
+                </div>
+
+                <div class="field col-span-2">
+                  <span class="field-hint">
+                    Files named like <code id="manualExQ">Q001.png</code> / <code id="manualExS">S001.png</code> from your start number.
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="action-card">
+            <button id="manualBtn" class="btn-primary">
+              <span id="manualBtnIcon" class="sparkle">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg>
+              </span>
+              <span id="manualBtnText">Open &amp; Crop</span>
+            </button>
+
+            <div id="manualStatus" class="status"><span class="muted">Upload a PDF, then open it to start cropping.</span></div>
+            <div id="manualActions" class="actions" style="display:none;"></div>
+          </div>
+        </div>
+      </div>
+      <!-- ============ END MANUAL CROP TOOL ============ -->
+
+
       <!-- ============ RENAME BATCH TOOL ============ -->
       <div id="renameView" style="display:none;">
-        <input id="renameInput" type="file" accept="image/*" multiple hidden />
+        <input id="renameInput" type="file" accept="image/*,application/pdf,.pdf" multiple style="position:absolute;width:0;height:0;opacity:0;overflow:hidden;pointer-events:none;" tabindex="-1" aria-hidden="true" />
 
-        <div class="card">
-          <div class="section-title">Images</div>
-          <div id="renameDrop" class="dropzone" role="button" tabindex="0" aria-label="Add images">
+        <!-- Dropzone: shown large when empty, compact once images are loaded -->
+        <div class="card" id="renameDropCard">
+          <div class="section-title">Add images or PDF</div>
+          <div id="renameDrop" class="dropzone" role="button" tabindex="0" aria-label="Add images or PDF">
             <div class="dz-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/>
               </svg>
             </div>
             <div class="dz-text">
-              <strong id="renameLabel">Drop images here or click to browse</strong>
-              <span>PNG, JPG, GIF, WEBP… • format is preserved on rename</span>
+              <strong id="renameLabel">Drop images or a PDF here, or click to browse</strong>
+              <span>PNG, JPG, GIF, WEBP… or a PDF (each page becomes an image)</span>
             </div>
           </div>
         </div>
 
-        <div class="cols">
-          <!-- LEFT: rename controls -->
-          <div class="card col">
-            <div class="section">
-              <div class="section-title">Rename options</div>
-              <div class="grid">
-                <div class="field col-span-2">
+        <!-- Controls + gallery: appear once at least one image is loaded -->
+        <div class="card" id="renameWorkspace" style="display:none;">
+          <div class="section">
+            <div class="section-title">Rename options</div>
+            <div class="rename-toolbar">
+              <div class="rt-fields">
+                <div class="field pattern-wrap">
                   <span class="field-label">Pattern <span class="field-hint" style="font-weight:500;">(<code>#</code> = number)</span></span>
-                  <input id="renamePattern" type="text" value="#" placeholder="e.g. Q#, page-#, photo" maxlength="60" />
+                  <div class="pattern-row">
+                    <input id="renamePattern" type="text" value="#" placeholder="e.g. Q#, (name), page-#" maxlength="120" />
+                    <button id="renameVarBtn" type="button" class="var-btn" aria-haspopup="true" aria-expanded="false" title="Insert a variable">
+                      Variables
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                  </div>
+                  <div id="renameVarMenu" class="var-menu" role="menu" aria-label="Variables"></div>
                 </div>
                 <div class="field">
                   <span class="field-label">Start</span>
@@ -1293,23 +2154,38 @@
                   <span class="field-label">Padding</span>
                   <input id="renamePadding" type="number" value="0" min="0" max="12" />
                 </div>
-                <div class="field col-span-2">
-                  <span class="field-hint">
-                    Example: <code id="renameExample">1</code> → each file keeps its original extension. Use padding for <code>001</code>, <code>002</code>…
-                  </span>
+                <div class="field">
+                  <span class="field-label">Format</span>
+                  <div class="custom-select" id="renameFormatSelect">
+                    <button type="button" class="cs-trigger" id="renameFormatTrigger" aria-haspopup="listbox" aria-expanded="false">
+                      <span id="renameFormatLabel">Original</span>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                    <div class="cs-menu" id="renameFormatMenu" role="listbox" aria-label="Output format"></div>
+                  </div>
                 </div>
               </div>
             </div>
+            <div class="field-hint" style="margin-top:8px;">
+              Use <code>#</code> for the number, or click <strong>Variables</strong> to insert tokens like <code>(name)</code>, <code>(width)</code>, <code>(date)</code>. Example: <code id="renameExample">1</code>
+            </div>
           </div>
 
-          <!-- RIGHT: preview list -->
-          <div class="card col">
-            <div class="section">
-              <div class="section-title">Preview (<span id="renameCount">0</span>)</div>
-              <div id="renameList" class="rename-list">
-                <div class="rename-empty">No images yet. Add some to see the before → after names.</div>
+          <div class="section">
+            <div class="rename-meta">
+              <span class="rm-count"><span id="renameCount">0</span> image(s) loaded</span>
+              <div class="rm-actions">
+                <button id="renameAddMore" type="button" class="rm-btn">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  <span>Add more</span>
+                </button>
+                <button id="renameClearAll" type="button" class="rm-btn danger">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                  <span>Clear all</span>
+                </button>
               </div>
             </div>
+            <div id="renameList" class="rename-gallery"></div>
           </div>
         </div>
 
@@ -1320,11 +2196,206 @@
             </span>
             <span id="renameBtnText">Rename &amp; Download ZIP</span>
           </button>
-          <div id="renameStatus" class="status"><span class="muted">Add images, set a pattern, then download.</span></div>
+          <div id="renameStatus" class="status"><span class="muted">Add images or a PDF, set a pattern, then download.</span></div>
         </div>
       </div>
       <!-- ============ END RENAME BATCH TOOL ============ -->
+
+      <!-- Image lightbox: view loaded images one-by-one -->
+      <div id="renameLightbox" class="lightbox" role="dialog" aria-modal="true" aria-label="Image preview">
+        <div class="lb-bar">
+          <span class="lb-name" id="lbName">image</span>
+          <span class="lb-pos" id="lbPos">1 / 1</span>
+          <button class="lb-btn danger" id="lbDelete" type="button" title="Remove this image" aria-label="Remove this image">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          </button>
+          <button class="lb-btn" id="lbClose" type="button" title="Close" aria-label="Close">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="lb-stage">
+          <button class="lb-nav lb-prev" id="lbPrev" type="button" title="Previous" aria-label="Previous">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <div class="lb-frame"><img id="lbImg" alt="" /></div>
+          <button class="lb-nav lb-next" id="lbNext" type="button" title="Next" aria-label="Next">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+      </div>
     </div>
+
+    <!-- ---------- How to Use modal ---------- -->
+    <div class="how-to-modal-overlay" id="howToModal" role="dialog" aria-modal="true" aria-labelledby="howToTitle">
+      <div class="how-to-modal">
+
+        <!-- Header row -->
+        <div class="how-to-head">
+          <div class="ht-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <polygon points="10 8 16 12 10 16 10 8" fill="currentColor" stroke="none"/>
+            </svg>
+          </div>
+          <div class="ht-title-wrap">
+            <div class="ht-title" id="howToTitle">How to Use Qpic</div>
+            <div class="ht-sub">Watch the walkthrough or follow the steps below</div>
+          </div>
+          <button type="button" class="how-to-close" id="howToClose" aria-label="Close">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Tab strip -->
+        <div class="ht-tabs" role="tablist" aria-label="Tutorial sections">
+          <button class="ht-tab active" role="tab" aria-selected="true"  data-ht-tab="uiux"   aria-controls="htPanel-uiux">UI &amp; UX of Qpic</button>
+          <button class="ht-tab"        role="tab" aria-selected="false" data-ht-tab="crop"   aria-controls="htPanel-crop">How to Crop</button>
+          <button class="ht-tab"        role="tab" aria-selected="false" data-ht-tab="rename" aria-controls="htPanel-rename">How to Rename Batch</button>
+        </div>
+
+        <!-- Body (scrollable) -->
+        <div class="how-to-body">
+
+          <!-- ── Tab 1: UI & UX of Qpic ── -->
+          <div class="ht-panel active" id="htPanel-uiux" role="tabpanel" aria-labelledby="htTab-uiux">
+            <div class="yt-embed-wrap">
+              <iframe
+                class="ht-iframe"
+                src=""
+                data-src="https://www.youtube.com/embed/VIDEO_ID_1?rel=0&modestbranding=1"
+                title="UI &amp; UX of Qpic"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowfullscreen
+              ></iframe>
+            </div>
+            <div class="how-to-steps">
+              <h3>Overview</h3>
+              <div class="ht-step">
+                <div class="ht-step-num">1</div>
+                <div class="ht-step-text">
+                  <strong>App bar</strong>
+                  <span>Switch between Crop and Rename Batch tools. Use the theme switcher (light / dark / system) on the right.</span>
+                </div>
+              </div>
+              <div class="ht-step">
+                <div class="ht-step-num">2</div>
+                <div class="ht-step-text">
+                  <strong>Left panel — What to Crop</strong>
+                  <span>Toggle Questions / Solutions, set page ranges, enable Smart mode and Online AI mode.</span>
+                </div>
+              </div>
+              <div class="ht-step">
+                <div class="ht-step-num">3</div>
+                <div class="ht-step-text">
+                  <strong>Right panel — Output Options</strong>
+                  <span>Choose format (PNG/JPEG), DPI, file prefix, and start number for the exported images.</span>
+                </div>
+              </div>
+              <div class="ht-step">
+                <div class="ht-step-num">4</div>
+                <div class="ht-step-text">
+                  <strong>Light &amp; Dark themes</strong>
+                  <span>The app follows your OS preference by default. Override it anytime with the theme switcher in the top-right corner.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── Tab 2: How to Crop ── -->
+          <div class="ht-panel" id="htPanel-crop" role="tabpanel" aria-labelledby="htTab-crop">
+            <div class="yt-embed-wrap">
+              <iframe
+                class="ht-iframe"
+                src=""
+                data-src="https://www.youtube.com/embed/VIDEO_ID_2?rel=0&modestbranding=1"
+                title="How to Crop"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowfullscreen
+              ></iframe>
+            </div>
+            <div class="how-to-steps">
+              <h3>Cropping Questions</h3>
+              <div class="ht-step">
+                <div class="ht-step-num">1</div>
+                <div class="ht-step-text">
+                  <strong>Upload your PDF</strong>
+                  <span>Click "Choose PDF" or drag-and-drop your MCQ question paper onto the upload area.</span>
+                </div>
+              </div>
+              <div class="ht-step">
+                <div class="ht-step-num">2</div>
+                <div class="ht-step-text">
+                  <strong>Set options</strong>
+                  <span>Choose question numbering style, toggle Smart mode (auto-detect layout), and enable Online AI mode if you have an API key.</span>
+                </div>
+              </div>
+              <div class="ht-step">
+                <div class="ht-step-num">3</div>
+                <div class="ht-step-text">
+                  <strong>Analyze &amp; Review</strong>
+                  <span>Click "Analyze &amp; Review". Detected question boxes appear over the page. Fix any wrong boxes by clicking Fix → drag the correct region.</span>
+                </div>
+              </div>
+              <div class="ht-step">
+                <div class="ht-step-num">4</div>
+                <div class="ht-step-text">
+                  <strong>Finalize &amp; Download</strong>
+                  <span>Click "Finalize &amp; Download" to get a ZIP of cropped images. Choose Combined, Questions only, or Solutions only.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── Tab 3: How to Rename Batch ── -->
+          <div class="ht-panel" id="htPanel-rename" role="tabpanel" aria-labelledby="htTab-rename">
+            <div class="yt-embed-wrap">
+              <iframe
+                class="ht-iframe"
+                src=""
+                data-src="https://www.youtube.com/embed/VIDEO_ID_3?rel=0&modestbranding=1"
+                title="How to Rename Batch"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowfullscreen
+              ></iframe>
+            </div>
+            <div class="how-to-steps">
+              <h3>Batch Renaming Images</h3>
+              <div class="ht-step">
+                <div class="ht-step-num">1</div>
+                <div class="ht-step-text">
+                  <strong>Switch to Rename Batch tab</strong>
+                  <span>Click "Rename Batch" in the top app bar to open the rename tool.</span>
+                </div>
+              </div>
+              <div class="ht-step">
+                <div class="ht-step-num">2</div>
+                <div class="ht-step-text">
+                  <strong>Upload images</strong>
+                  <span>Drag-and-drop or select multiple image files (PNG, JPEG, etc.) you want to rename.</span>
+                </div>
+              </div>
+              <div class="ht-step">
+                <div class="ht-step-num">3</div>
+                <div class="ht-step-text">
+                  <strong>Set a naming pattern</strong>
+                  <span>Type a prefix (e.g. "Q") and set the start number. Use the Variables button to insert dynamic tokens like {n} for auto-numbering.</span>
+                </div>
+              </div>
+              <div class="ht-step">
+                <div class="ht-step-num">4</div>
+                <div class="ht-step-text">
+                  <strong>Rename &amp; Download ZIP</strong>
+                  <span>Preview the new names in the gallery, remove any unwanted files, then click "Rename &amp; Download ZIP".</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /.how-to-body -->
+      </div><!-- /.how-to-modal -->
+    </div><!-- /.how-to-modal-overlay -->
 
     <!-- ---------- Persistent credit footer ---------- -->
     <footer class="app-credit" aria-label="Credit">
@@ -1332,6 +2403,24 @@
       <a class="credit-name" href="https://www.linkedin.com/in/aniketmishra0/" target="_blank" rel="noopener noreferrer">Aniket Mishra</a>
       · Qpic
     </footer>
+
+    <!-- ---------- PDF preview modal ---------- -->
+    <div class="modal-overlay" id="pdfModal" role="dialog" aria-modal="true" aria-labelledby="pdfModalTitle">
+      <div class="modal pdf-modal">
+        <div class="modal-head">
+          <span class="head-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" />
+            </svg>
+          </span>
+          <h2 id="pdfModalTitle">Source PDF</h2>
+          <button class="close-x" id="pdfModalClose" aria-label="Close">×</button>
+        </div>
+        <div class="modal-body">
+          <iframe id="pdfFrame" class="pdf-frame" title="PDF preview"></iframe>
+        </div>
+      </div>
+    </div>
 
     <!-- ---------- Review + manual-crop modal ---------- -->
     <div class="modal-overlay" id="reviewModal" role="dialog" aria-modal="true" aria-labelledby="reviewTitle">
@@ -1495,6 +2584,11 @@
       const fileInput = document.getElementById('fileInput');
       const dropzone = document.getElementById('dropzone');
       const dzIcon = document.getElementById('dzIcon');
+      const viewPdfBtn = document.getElementById('viewPdfBtn');
+      const pdfModal = document.getElementById('pdfModal');
+      const pdfModalClose = document.getElementById('pdfModalClose');
+      const pdfFrame = document.getElementById('pdfFrame');
+      const pdfModalTitle = document.getElementById('pdfModalTitle');
       const fileLabel = document.getElementById('fileLabel');
       const dpiEl = document.getElementById('dpi');
       const imageFormatEl = document.getElementById('imageFormat');
@@ -1525,6 +2619,29 @@
       const onlineCard = document.getElementById('onlineCard');
       const onlineSub = document.getElementById('onlineSub');
       const markerStyleEl = document.getElementById('markerStyle');
+
+      // Manual Crop tool elements
+      const manualFileInput = document.getElementById('manualFileInput');
+      const manualDropzone = document.getElementById('manualDropzone');
+      const manualDzIcon = document.getElementById('manualDzIcon');
+      const manualViewPdfBtn = document.getElementById('manualViewPdfBtn');
+      const manualClearBtn = document.getElementById('manualClearBtn');
+      const manualFileLabel = document.getElementById('manualFileLabel');
+      const manualDpiEl = document.getElementById('manualDpi');
+      const manualImageFormatEl = document.getElementById('manualImageFormat');
+      const manualQualityField = document.getElementById('manualQualityField');
+      const manualJpgQualityEl = document.getElementById('manualJpgQuality');
+      const manualJpgQualityVal = document.getElementById('manualJpgQualityVal');
+      const manualQuestionPrefixEl = document.getElementById('manualQuestionPrefix');
+      const manualSolutionPrefixEl = document.getElementById('manualSolutionPrefix');
+      const manualStartNumberEl = document.getElementById('manualStartNumber');
+      const manualExQ = document.getElementById('manualExQ');
+      const manualExS = document.getElementById('manualExS');
+      const manualBtn = document.getElementById('manualBtn');
+      const manualBtnIcon = document.getElementById('manualBtnIcon');
+      const manualBtnText = document.getElementById('manualBtnText');
+      const manualStatusEl = document.getElementById('manualStatus');
+      const manualActionsEl = document.getElementById('manualActions');
 
       // Review modal elements
       const reviewModal = document.getElementById('reviewModal');
@@ -1558,6 +2675,7 @@
       const fsIconCollapse = document.getElementById('fsIconCollapse');
 
       let selectedFile = null;
+      let selectedManualFile = null;
 
       // Review session state (set after a successful /analyze).
       let review = null;
@@ -1587,6 +2705,22 @@
       solutionPrefixEl.addEventListener('input', syncFormat);
       jpgQualityEl.addEventListener('input', () => { jpgQualityVal.textContent = jpgQualityEl.value; });
       syncFormat();
+
+      // ---- Manual Crop: format / quality wiring (mirrors the auto tool) ----
+      function syncManualFormat() {
+        const isJpg = manualImageFormatEl.value === 'jpg';
+        manualQualityField.style.display = isJpg ? '' : 'none';
+        const ext = isJpg ? 'jpg' : 'png';
+        const qp = (manualQuestionPrefixEl.value.trim() || 'Q');
+        const sp = (manualSolutionPrefixEl.value.trim() || 'S');
+        manualExQ.textContent = `${qp}001.${ext}`;
+        manualExS.textContent = `${sp}001.${ext}`;
+      }
+      manualImageFormatEl.addEventListener('change', syncManualFormat);
+      manualQuestionPrefixEl.addEventListener('input', syncManualFormat);
+      manualSolutionPrefixEl.addEventListener('input', syncManualFormat);
+      manualJpgQualityEl.addEventListener('input', () => { manualJpgQualityVal.textContent = manualJpgQualityEl.value; });
+      syncManualFormat();
 
       // ---- Toggle wiring (questions + solutions) ----
       function syncToggle(card, collapse, checkbox, pagesEl, partnerPrefixEl) {
@@ -1645,10 +2779,11 @@
       // Ask the backend whether an AI provider is configured; reflect it in the
       // toggle's label and enabled state.
       (async function initOnlineToggle() {
-        // Restore the saved preference first (defaults to on).
+        // Restore the saved preference first. AI is opt-in: the toggle stays
+        // OFF unless the user previously turned it on (saved === '1').
         try {
           const saved = localStorage.getItem('mcq-online');
-          if (saved === '0') onlineModeEl.checked = false;
+          onlineModeEl.checked = saved === '1';
         } catch (_) {}
         try {
           const res = await fetch('/api/health');
@@ -1686,6 +2821,23 @@
         if (!nodes || nodes.length === 0) { actionsEl.style.display = 'none'; return; }
         actionsEl.style.display = 'flex';
         nodes.forEach((n) => actionsEl.appendChild(n));
+      }
+
+      // ---- Manual Crop tool status/actions (separate from the auto tool) ----
+      function setManualStatus(html, kind) {
+        manualStatusEl.className = 'status' + (kind ? ' is-' + kind : '');
+        let icon = '';
+        if (kind === 'ok') icon = `<span class="s-icon" style="color:var(--success)">${ICONS.check}</span>`;
+        else if (kind === 'error') icon = `<span class="s-icon" style="color:var(--danger)">${ICONS.error}</span>`;
+        else if (kind === 'busy') icon = `<span class="s-icon"><span class="spinner"></span></span>`;
+        manualStatusEl.innerHTML = icon + `<span>${html}</span>`;
+      }
+
+      function setManualActions(nodes) {
+        manualActionsEl.innerHTML = '';
+        if (!nodes || nodes.length === 0) { manualActionsEl.style.display = 'none'; return; }
+        manualActionsEl.style.display = 'flex';
+        nodes.forEach((n) => manualActionsEl.appendChild(n));
       }
 
       function badgeHtml(method) {
@@ -1742,6 +2894,8 @@
         if (!isPdf(file)) {
           selectedFile = null;
           dropzone.classList.remove('has-file');
+          if (viewPdfBtn) viewPdfBtn.hidden = true;
+          if (clearBtn) clearBtn.hidden = true;
           dzIcon.innerHTML = ICONS.upload;
           fileLabel.textContent = 'Drop PDF here or click to browse';
           setStatus('Please select a PDF file.', 'error');
@@ -1750,6 +2904,8 @@
         }
         selectedFile = file;
         dropzone.classList.add('has-file');
+        if (viewPdfBtn) viewPdfBtn.hidden = false;
+        if (clearBtn) clearBtn.hidden = false;
         dzIcon.innerHTML = ICONS.check;
         const mb = file.size ? ` • ${(file.size / 1024 / 1024).toFixed(1)} MB` : '';
         fileLabel.textContent = file.name;
@@ -1769,6 +2925,138 @@
         e.preventDefault();
         dropzone.classList.remove('dragover');
         pickFile(e.dataTransfer.files && e.dataTransfer.files[0]);
+      });
+
+      // ---- PDF preview modal ----
+      let pdfPreviewUrl = null;
+      function openPdfPreview() {
+        if (!selectedFile) return;
+        if (pdfPreviewUrl) { URL.revokeObjectURL(pdfPreviewUrl); pdfPreviewUrl = null; }
+        pdfPreviewUrl = URL.createObjectURL(selectedFile);
+        pdfFrame.src = pdfPreviewUrl;
+        if (pdfModalTitle) pdfModalTitle.textContent = selectedFile.name || 'Source PDF';
+        pdfModal.classList.add('open');
+      }
+      function closePdfPreview() {
+        pdfModal.classList.remove('open');
+        pdfFrame.removeAttribute('src');
+        if (pdfPreviewUrl) { URL.revokeObjectURL(pdfPreviewUrl); pdfPreviewUrl = null; }
+      }
+      if (viewPdfBtn) {
+        viewPdfBtn.addEventListener('click', (e) => {
+          // Don't let the click bubble to the dropzone (which opens the file picker).
+          e.stopPropagation();
+          openPdfPreview();
+        });
+      }
+      pdfModalClose.addEventListener('click', closePdfPreview);
+      pdfModal.addEventListener('click', (e) => { if (e.target === pdfModal) closePdfPreview(); });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && pdfModal.classList.contains('open')) closePdfPreview();
+      });
+
+      // ====================================================================
+      //  Manual Crop tool: upload → open the draw canvas (no auto-detection)
+      // ====================================================================
+      function pickManualFile(file) {
+        if (!file) return;
+        if (!isPdf(file)) {
+          selectedManualFile = null;
+          manualDropzone.classList.remove('has-file');
+          manualViewPdfBtn.hidden = true;
+          manualClearBtn.hidden = true;
+          manualDzIcon.innerHTML = ICONS.upload;
+          manualFileLabel.textContent = 'Drop PDF here or click to browse';
+          setManualStatus('Please select a PDF file.', 'error');
+          return;
+        }
+        selectedManualFile = file;
+        manualDropzone.classList.add('has-file');
+        manualViewPdfBtn.hidden = false;
+        manualClearBtn.hidden = false;
+        manualDzIcon.innerHTML = ICONS.check;
+        const mb = file.size ? ` • ${(file.size / 1024 / 1024).toFixed(1)} MB` : '';
+        manualFileLabel.textContent = file.name;
+        setManualStatus(`<span class="muted">PDF selected${mb}. Click “Open &amp; Crop” to start.</span>`);
+        setManualActions([]);
+      }
+
+      manualDropzone.addEventListener('click', () => manualFileInput.click());
+      manualDropzone.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); manualFileInput.click(); }
+      });
+      manualFileInput.addEventListener('change', (e) => pickManualFile(e.target.files && e.target.files[0]));
+      manualDropzone.addEventListener('dragover', (e) => { e.preventDefault(); manualDropzone.classList.add('dragover'); });
+      manualDropzone.addEventListener('dragleave', () => manualDropzone.classList.remove('dragover'));
+      manualDropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        manualDropzone.classList.remove('dragover');
+        pickManualFile(e.dataTransfer.files && e.dataTransfer.files[0]);
+      });
+
+      // Reuse the auto tool's PDF preview modal for the manual "View" button.
+      manualViewPdfBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!selectedManualFile) return;
+        if (pdfPreviewUrl) { URL.revokeObjectURL(pdfPreviewUrl); pdfPreviewUrl = null; }
+        pdfPreviewUrl = URL.createObjectURL(selectedManualFile);
+        pdfFrame.src = pdfPreviewUrl;
+        if (pdfModalTitle) pdfModalTitle.textContent = selectedManualFile.name || 'Source PDF';
+        pdfModal.classList.add('open');
+      });
+
+      function setManualBusy(busy) {
+        manualBtn.disabled = busy;
+        manualBtnIcon.innerHTML = busy
+          ? '<span class="spinner"></span>'
+          : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg>';
+        manualBtnText.textContent = busy ? 'Opening…' : 'Open & Crop';
+      }
+
+      manualBtn.addEventListener('click', async () => {
+        setManualActions([]);
+        if (!selectedManualFile) { setManualStatus('Please select a PDF first.', 'error'); return; }
+
+        setManualBusy(true);
+        setManualStatus('Rendering pages for manual cropping…', 'busy');
+        const dpi = parseInt(manualDpiEl.value, 10) || 200;
+
+        try {
+          const fd = new FormData();
+          fd.append('file', selectedManualFile);
+          const params = new URLSearchParams({ dpi: String(dpi) });
+
+          const res = await fetch(`/api/prepare-manual?${params.toString()}`, { method: 'POST', body: fd });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(extractErrorMessage(data && data.detail, res.status));
+
+          openReview(data, true);
+          setManualStatus(
+            `Opened <strong>${data.total_pages || 0}</strong> page${(data.total_pages || 0) === 1 ? '' : 's'}. Draw boxes, then combine &amp; download.`,
+            'ok'
+          );
+        } catch (e) {
+          setManualStatus(e.message, 'error');
+        } finally {
+          setManualBusy(false);
+        }
+      });
+
+      function clearManualTool() {
+        selectedManualFile = null;
+        if (manualFileInput) manualFileInput.value = '';
+        manualDropzone.classList.remove('has-file');
+        manualViewPdfBtn.hidden = true;
+        manualClearBtn.hidden = true;
+        if (typeof closePdfPreview === 'function') closePdfPreview();
+        manualDzIcon.innerHTML = ICONS.upload;
+        manualFileLabel.textContent = 'Drop PDF here or click to browse';
+        setManualActions([]);
+        setManualStatus('<span class="muted">Upload a PDF, then open it to start cropping.</span>');
+      }
+      manualClearBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        clearManualTool();
       });
 
       cropBtn.addEventListener('click', async () => {
@@ -1815,15 +3103,24 @@
         }
       });
 
-      // Output options shared by direct-crop and finalize.
-      function gatherOutputOptions() {
-        const qPrefix = questionPrefixEl.value.trim() || 'Q';
-        const sPrefix = solutionPrefixEl.value.trim() || 'S';
-        let startNumber = parseInt(startNumberEl.value, 10);
+      // Output options shared by direct-crop and finalize. When `manual` is
+      // true it reads the Manual Crop tool's own fields instead of the auto
+      // tool's, so the two tools never read each other's settings.
+      function gatherOutputOptions(manual) {
+        const qEl = manual ? manualQuestionPrefixEl : questionPrefixEl;
+        const sEl = manual ? manualSolutionPrefixEl : solutionPrefixEl;
+        const startEl = manual ? manualStartNumberEl : startNumberEl;
+        const fmtEl = manual ? manualImageFormatEl : imageFormatEl;
+        const qualEl = manual ? manualJpgQualityEl : jpgQualityEl;
+        const dEl = manual ? manualDpiEl : dpiEl;
+
+        const qPrefix = qEl.value.trim() || 'Q';
+        const sPrefix = sEl.value.trim() || 'S';
+        let startNumber = parseInt(startEl.value, 10);
         if (!Number.isFinite(startNumber) || startNumber < 1) startNumber = 1;
-        const imageFormat = imageFormatEl.value === 'jpg' ? 'jpg' : 'png';
-        const jpgQuality = parseInt(jpgQualityEl.value, 10) || 90;
-        const dpi = parseInt(dpiEl.value, 10) || 200;
+        const imageFormat = fmtEl.value === 'jpg' ? 'jpg' : 'png';
+        const jpgQuality = parseInt(qualEl.value, 10) || 90;
+        const dpi = parseInt(dEl.value, 10) || 200;
         return { qPrefix, sPrefix, startNumber, imageFormat, jpgQuality, dpi };
       }
 
@@ -1905,15 +3202,24 @@
       }
 
       function showDownload(data) {
+        renderDownload(data, false);
+      }
+
+      function showManualDownload(data) {
+        renderDownload(data, true);
+      }
+
+      function renderDownload(data, manual) {
+        const setActionsFn = manual ? setManualActions : setActions;
         // Accept either the full crop/finalize response (preferred) or a bare
         // URL string for backward compatibility.
         if (typeof data === 'string') {
           const single = makeDownloadLink(data, 'Download ZIP', 'download');
-          setActions([single]);
+          setActionsFn([single]);
           return;
         }
 
-        const opt = gatherOutputOptions();
+        const opt = gatherOutputOptions(manual);
         const pfx = `&question_prefix=${encodeURIComponent(opt.qPrefix)}&solution_prefix=${encodeURIComponent(opt.sPrefix)}`;
         const nodes = [];
 
@@ -1955,7 +3261,7 @@
           }
         }
 
-        setActions(nodes);
+        setActionsFn(nodes);
       }
 
       function makeDownloadLink(url, label, className) {
@@ -2037,9 +3343,10 @@
       //  Review + manual-crop popup
       // ====================================================================
 
-      function openReview(data) {
+      function openReview(data, manual) {
         review = {
           jobId: data.job_id,
+          manual: !!manual,
           pages: data.pages || [],
           // items: { q_num, is_solution, segments[], source, flagged }
           items: (data.items || []).map((it) => ({
@@ -2063,6 +3370,17 @@
         reviewModal.classList.add('open');
       }
 
+      // Prefix shown on item rows / boxes — reads the active tool's fields so a
+      // manual session uses the Manual Crop prefixes, not the auto ones.
+      function reviewQPrefix() {
+        const el = review && review.manual ? manualQuestionPrefixEl : questionPrefixEl;
+        return el.value.trim() || 'Q';
+      }
+      function reviewSPrefix() {
+        const el = review && review.manual ? manualSolutionPrefixEl : solutionPrefixEl;
+        return el.value.trim() || 'S';
+      }
+
       function closeReview() {
         reviewModal.classList.remove('open');
         reviewModal.classList.remove('fullscreen');
@@ -2082,6 +3400,15 @@
           notesWrap.appendChild(ok);
           return;
         }
+
+        // Summary header: how many flagged items still need a look.
+        const head = document.createElement('div');
+        head.className = 'notes-head';
+        head.innerHTML =
+          `<span class="nh-title">Items to Fix</span>` +
+          `<span class="nh-count">${review.notes.length}</span>`;
+        notesWrap.appendChild(head);
+
         review.notes.forEach((nt) => {
           const el = document.createElement('div');
           const cls = nt.kind === 'gap' ? ' gap' : (nt.kind === 'incomplete' ? ' incomplete' : '');
@@ -2257,7 +3584,12 @@
             box.style.top = seg.y_start_pct + '%';
             box.style.width = (seg.x_end_pct - seg.x_start_pct) + '%';
             box.style.height = (seg.y_end_pct - seg.y_start_pct) + '%';
-            const label = (it.is_solution ? (solutionPrefixEl.value.trim() || 'S') : (questionPrefixEl.value.trim() || 'Q')) + it.q_num;
+            const base = (it.is_solution ? reviewSPrefix() : reviewQPrefix()) + it.q_num;
+            // Multi-box items get a part letter (a, b, c…) in reading order so a
+            // cross-page question (Q3a on p3, Q3b on p4) or a scattered one
+            // (Q5a/Q5b/Q5c) shows which box is which and how they'll stitch.
+            const segLetter = it.segments.length > 1 ? String.fromCharCode(97 + segIdx) : '';
+            const label = base + segLetter;
             box.innerHTML = `<span class="tag">${escapeHtml(label)}</span>`;
 
             // While re-selecting, dragging anywhere on the page draws a fresh
@@ -2556,17 +3888,59 @@
         if (!review || idx < 0 || idx >= review.items.length) return;
         review.editingIndex = idx;
         const it = review.items[idx];
+        // Lock the lettering to selection order: whatever is already on the
+        // item stays first (part "a") and every box drawn from here on is
+        // appended as b, c, d… in draw order — never re-sorted by position. So
+        // drawing a box above the existing one won't steal "a".
+        it.manualOrder = true;
         // Jump to the page the item starts on so the user can immediately draw.
         const startPage = it.segments.length ? Math.min(...it.segments.map((s) => s.page)) : currentPageNumber();
         const pgIdx = review.pages.findIndex((p) => p.page === startPage);
         if (pgIdx >= 0) gotoPage(pgIdx);
 
-        const prefix = it.is_solution ? (solutionPrefixEl.value.trim() || 'S') : (questionPrefixEl.value.trim() || 'Q');
-        editBannerText.textContent = `Re-selecting ${prefix}${it.q_num} — draw any number of boxes (across pages) to add to this question. Click ✕ on a box to remove it, then click “Done”.`;
+        const prefix = it.is_solution ? reviewSPrefix() : reviewQPrefix();
+        editBannerText.textContent = `Re-selecting ${prefix}${it.q_num} — the current box is part “a”. Draw more boxes (across pages) to add parts b, c, d… in the order you draw them. Click ✕ on a box to remove it, then click “Done”.`;
         editBanner.style.display = 'flex';
         drawLayer.classList.add('editing');
         renderItemList();
         drawExistingBoxes();
+        // Scroll the stage so the flagged item is front-and-center rather than
+        // just landing somewhere on the (possibly long) page.
+        scrollToItem(idx);
+      }
+
+      // Scroll the canvas stage so the item's first box on the current page is
+      // centered vertically. The image may still be loading, so we retry on its
+      // load event once its real height is known.
+      function scrollToItem(idx) {
+        if (!review || idx < 0 || idx >= review.items.length) return;
+        const it = review.items[idx];
+        const pageNo = currentPageNumber();
+        const seg = it.segments.find((s) => s.page === pageNo) || it.segments[0];
+        if (!seg) return;
+
+        const doScroll = () => {
+          const frameH = canvasFrame.offsetHeight || 0;
+          const frameW = canvasFrame.offsetWidth || 0;
+          if (!frameH) return false; // image not laid out yet
+          const boxTop = (seg.y_start_pct / 100) * frameH;
+          const boxH = ((seg.y_end_pct - seg.y_start_pct) / 100) * frameH;
+          const boxLeft = (seg.x_start_pct / 100) * frameW;
+          const boxW = ((seg.x_end_pct - seg.x_start_pct) / 100) * frameW;
+          canvasStage.scrollTo({
+            top: Math.max(0, boxTop + boxH / 2 - canvasStage.clientHeight / 2),
+            left: Math.max(0, boxLeft + boxW / 2 - canvasStage.clientWidth / 2),
+            behavior: 'smooth',
+          });
+          return true;
+        };
+
+        if (!doScroll()) {
+          // Frame had no height yet (fresh page image): try again once it loads.
+          const retry = () => { doScroll(); pageImg.removeEventListener('load', retry); };
+          pageImg.addEventListener('load', retry);
+          requestAnimationFrame(doScroll);
+        }
       }
 
       function stopEditing() {
@@ -2600,8 +3974,12 @@
         const it = review.items[idx];
         it.segments.push(seg);
         // Keep segments in reading order (page, then top-to-bottom) so the
-        // backend stitches them the way they appear on the page.
-        it.segments.sort((a, b) => (a.page - b.page) || (a.y_start_pct - b.y_start_pct));
+        // backend stitches them the way they appear on the page — unless the
+        // user has hand-ordered the parts (e.g. a scattered Q5), in which case
+        // the new box is just appended to the end and the manual order is kept.
+        if (!it.manualOrder) {
+          it.segments.sort((a, b) => (a.page - b.page) || (a.y_start_pct - b.y_start_pct));
+        }
         it.flagged = false;
         it.flag_reason = null;
         it.source = 'manual';
@@ -2705,13 +4083,60 @@
         review.items.forEach((it, idx) => {
           const row = document.createElement('div');
           row.className = 'item-row' + (it.source === 'manual' ? ' manual' : '') + (it.flagged ? ' flagged' : '') + (review.editingIndex === idx ? ' editing' : '');
-          const prefix = it.is_solution ? (solutionPrefixEl.value.trim() || 'S') : (questionPrefixEl.value.trim() || 'Q');
-          const pages = [...new Set(it.segments.map((s) => s.page))].join(', ');
-          const sub = it.flagged && it.flag_reason ? escapeHtml(it.flag_reason) : `${it.is_solution ? 'Solution' : 'Question'} • page ${pages}`;
-          row.innerHTML =
+          const prefix = it.is_solution ? reviewSPrefix() : reviewQPrefix();
+          const kind = it.is_solution ? 'Solution' : 'Question';
+          const multi = it.segments.length > 1;
+          let sub;
+          if (it.flagged && it.flag_reason) {
+            sub = escapeHtml(it.flag_reason);
+          } else if (multi) {
+            sub = `${kind} • ${it.segments.length} parts (stitched top→bottom in this order)`;
+          } else {
+            const pages = [...new Set(it.segments.map((s) => s.page))].join(', ');
+            sub = `${kind} • page ${pages}`;
+          }
+
+          const topRow = document.createElement('div');
+          topRow.style.display = 'flex';
+          topRow.style.alignItems = 'center';
+          topRow.style.gap = '9px';
+          topRow.style.width = '100%';
+          topRow.innerHTML =
             `<span class="it-label"><strong>${escapeHtml(prefix + it.q_num)}</strong><div class="it-sub">${sub}</div></span>` +
             `<button class="it-fix" title="Re-select region" data-fix="${idx}">Re-select</button>` +
             `<button class="it-del" title="Remove" data-idx="${idx}">×</button>`;
+
+          const wrap = document.createElement('div');
+          wrap.style.flex = '1';
+          wrap.style.minWidth = '0';
+          wrap.appendChild(topRow);
+
+          // Multi-box items get a reorderable part list. The stitch order is the
+          // list order, so a scattered question (e.g. Q5 with options above the
+          // question line) can be put back into true reading order by hand.
+          if (multi) {
+            const parts = document.createElement('div');
+            parts.className = 'item-parts';
+            const head = document.createElement('div');
+            head.className = 'ip-head';
+            head.textContent = 'Parts — reorder to fix the stitch order';
+            parts.appendChild(head);
+
+            it.segments.forEach((s, sIdx) => {
+              const pr = document.createElement('div');
+              pr.className = 'part-row';
+              const letter = String.fromCharCode(97 + sIdx);
+              pr.innerHTML =
+                `<span class="pr-letter">${letter}</span>` +
+                `<span class="pr-desc">${prefix}${escapeHtml(it.q_num)}${letter} • page ${s.page}</span>` +
+                `<button class="pr-move" title="Move up" data-up="${idx}:${sIdx}" ${sIdx === 0 ? 'disabled' : ''}>↑</button>` +
+                `<button class="pr-move" title="Move down" data-down="${idx}:${sIdx}" ${sIdx === it.segments.length - 1 ? 'disabled' : ''}>↓</button>`;
+              parts.appendChild(pr);
+            });
+            wrap.appendChild(parts);
+          }
+
+          row.appendChild(wrap);
           itemList.appendChild(row);
         });
         itemList.querySelectorAll('.it-del').forEach((btn) => {
@@ -2729,6 +4154,33 @@
             startEditing(i);
           });
         });
+        itemList.querySelectorAll('[data-up]').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const [i, s] = btn.getAttribute('data-up').split(':').map((n) => parseInt(n, 10));
+            moveSegment(i, s, -1);
+          });
+        });
+        itemList.querySelectorAll('[data-down]').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const [i, s] = btn.getAttribute('data-down').split(':').map((n) => parseInt(n, 10));
+            moveSegment(i, s, 1);
+          });
+        });
+      }
+
+      // Reorder a part within its item. Marks the item as hand-ordered so the
+      // re-select flow stops auto-sorting top-to-bottom and respects this order.
+      function moveSegment(itemIdx, segIdx, dir) {
+        const it = review && review.items[itemIdx];
+        if (!it) return;
+        const j = segIdx + dir;
+        if (j < 0 || j >= it.segments.length) return;
+        const tmp = it.segments[segIdx];
+        it.segments[segIdx] = it.segments[j];
+        it.segments[j] = tmp;
+        it.manualOrder = true;
+        renderItemList();
+        drawExistingBoxes();
       }
 
       // ---- Finalize: combine all items into the ZIP ----
@@ -2738,7 +4190,11 @@
           alert('Add at least one item to crop.');
           return;
         }
-        const opt = gatherOutputOptions();
+        const manual = !!review.manual;
+        const opt = gatherOutputOptions(manual);
+        // Route the result/status to whichever tool opened this review.
+        const showStatus = manual ? setManualStatus : setStatus;
+        const showResult = manual ? showManualDownload : showDownload;
         reviewFinalize.disabled = true;
         finalizeIcon.innerHTML = '<span class="spinner"></span>';
         finalizeText.textContent = 'Combining…';
@@ -2750,6 +4206,7 @@
               q_num: it.q_num,
               is_solution: it.is_solution,
               segments: it.segments,
+              source: it.source || 'auto',
             })),
             dpi: opt.dpi,
             padding: 20,
@@ -2769,13 +4226,13 @@
 
           const total = data.total_questions || 0;
           closeReview();
-          setStatus(
+          showStatus(
             `Done. Combined <strong>${total}</strong> ${opt.imageFormat.toUpperCase()} item${total === 1 ? '' : 's'} into a ZIP.`,
             'ok'
           );
-          showDownload(data);
+          showResult(data);
         } catch (e) {
-          setStatus(e.message, 'error');
+          showStatus(e.message, 'error');
           alert(e.message);
         } finally {
           reviewFinalize.disabled = false;
@@ -2790,6 +4247,7 @@
       const toolTabs = document.getElementById('toolTabs');
       const cropView = document.getElementById('cropView');
       const renameView = document.getElementById('renameView');
+      const manualView = document.getElementById('manualView');
       const headerSub = document.getElementById('headerSub');
       const clearBtn = document.getElementById('clearBtn');
 
@@ -2798,15 +4256,25 @@
 
       const HEADER_SUBS = {
         crop: 'Upload a PDF → smart-detect questions → download cropped ZIP',
+        manual: 'Upload a PDF → draw boxes by hand → download cropped ZIP',
         rename: 'Add images → set a naming pattern → download a renamed ZIP',
       };
 
       function switchTool(tool) {
-        activeTool = tool === 'rename' ? 'rename' : 'crop';
+        activeTool = (tool === 'rename' || tool === 'manual') ? tool : 'crop';
+        const isCrop = activeTool === 'crop';
+        const isManual = activeTool === 'manual';
         const isRename = activeTool === 'rename';
-        cropView.style.display = isRename ? 'none' : '';
+        cropView.style.display = isCrop ? '' : 'none';
+        manualView.style.display = isManual ? '' : 'none';
         renameView.style.display = isRename ? '' : 'none';
-        headerSub.textContent = HEADER_SUBS[activeTool];
+        if (headerSub) headerSub.textContent = HEADER_SUBS[activeTool];
+        // The auto tool's dropzone Clear/View buttons only belong to the crop view.
+        if (clearBtn) clearBtn.hidden = !isCrop || !selectedFile;
+        if (viewPdfBtn) viewPdfBtn.hidden = !isCrop || !selectedFile;
+        // The manual tool's own Clear/View buttons follow its own selection.
+        if (manualClearBtn) manualClearBtn.hidden = !isManual || !selectedManualFile;
+        if (manualViewPdfBtn) manualViewPdfBtn.hidden = !isManual || !selectedManualFile;
         toolTabs.querySelectorAll('.tool-tab').forEach((b) => {
           const active = b.dataset.tool === tool;
           b.classList.toggle('active', active);
@@ -2823,6 +4291,9 @@
         selectedFile = null;
         if (fileInput) fileInput.value = '';
         dropzone.classList.remove('has-file');
+        if (viewPdfBtn) viewPdfBtn.hidden = true;
+        if (clearBtn) clearBtn.hidden = true;
+        if (typeof closePdfPreview === 'function') closePdfPreview();
         dzIcon.innerHTML = ICONS.upload;
         fileLabel.textContent = 'Drop PDF here or click to browse';
         questionPagesEl.value = '';
@@ -2834,7 +4305,9 @@
         setCropTogglesLocked(true);
       }
 
-      clearBtn.addEventListener('click', () => {
+      clearBtn.addEventListener('click', (e) => {
+        // Stop the click from bubbling to the dropzone (which opens the file picker).
+        e.stopPropagation();
         if (activeTool === 'rename') {
           clearRenameTool();
         } else {
@@ -2845,6 +4318,8 @@
       // ---- Rename state ----
       const renameInput = document.getElementById('renameInput');
       const renameDrop = document.getElementById('renameDrop');
+      const renameDropCard = document.getElementById('renameDropCard');
+      const renameWorkspace = document.getElementById('renameWorkspace');
       const renameLabel = document.getElementById('renameLabel');
       const renamePattern = document.getElementById('renamePattern');
       const renameStart = document.getElementById('renameStart');
@@ -2856,9 +4331,54 @@
       const renameBtnIcon = document.getElementById('renameBtnIcon');
       const renameBtnText = document.getElementById('renameBtnText');
       const renameStatus = document.getElementById('renameStatus');
+      const renameAddMore = document.getElementById('renameAddMore');
+      const renameClearAll = document.getElementById('renameClearAll');
+      const renameVarBtn = document.getElementById('renameVarBtn');
+      const renameVarMenu = document.getElementById('renameVarMenu');
+      const renameFormatTrigger = document.getElementById('renameFormatTrigger');
+      const renameFormatMenu = document.getElementById('renameFormatMenu');
+      const renameFormatLabel = document.getElementById('renameFormatLabel');
 
-      // The chosen files (File objects), kept in display/numbering order.
-      let renameFiles = [];
+      // Output format state (replaces the old native <select>).
+      const FORMAT_OPTIONS = [
+        { value: 'original', label: 'Original' },
+        { value: 'png', label: 'PNG' },
+        { value: 'jpg', label: 'JPG' },
+        { value: 'webp', label: 'WEBP' },
+      ];
+      let renameFormatValue = 'original';
+
+      // Lightbox elements
+      const lb = document.getElementById('renameLightbox');
+      const lbImg = document.getElementById('lbImg');
+      const lbName = document.getElementById('lbName');
+      const lbPos = document.getElementById('lbPos');
+      const lbPrev = document.getElementById('lbPrev');
+      const lbNext = document.getElementById('lbNext');
+      const lbClose = document.getElementById('lbClose');
+      const lbDelete = document.getElementById('lbDelete');
+
+      // Each entry: { file, url, name, fromPdf, width, height, modified(ms) }
+      let renameItems = [];
+      let lbIndex = -1;
+
+      // ---- Variable tokens (mirror of imgworld-style variables) ----
+      // Each is resolved per-file at preview/download time. The number token
+      // `#` is handled separately (it supports zero-padding).
+      const RENAME_VARS = [
+        { token: '#',          label: '# number',      desc: 'file number → (1), (2)…' },
+        { token: '(n)',        label: '(n)',           desc: 'file number' },
+        { token: '(name)',     label: '(name)',        desc: 'name without extension' },
+        { token: '(fullname)', label: '(fullname)',    desc: 'full original name' },
+        { token: '(ext)',      label: '(ext)',         desc: 'file extension' },
+        { token: '(width)',    label: '(width)',       desc: 'image width (px)' },
+        { token: '(height)',   label: '(height)',      desc: 'image height (px)' },
+        { token: '(date)',     label: '(date)',        desc: "today's date" },
+        { token: '(moddate)',  label: '(moddate)',     desc: 'modified date' },
+        { token: '(size)',     label: '(size)',        desc: 'formatted size' },
+        { token: '(sizekb)',   label: '(sizekb)',      desc: 'size in KB' },
+        { token: '(sizeb)',    label: '(sizeb)',       desc: 'size in bytes' },
+      ];
 
       function renameStatusMsg(html, kind) {
         renameStatus.className = 'status' + (kind ? ' is-' + kind : '');
@@ -2876,90 +4396,394 @@
         return [base.slice(0, dot), base.slice(dot + 1).toLowerCase()];
       }
 
-      // Mirror of the backend naming so the preview matches the download exactly.
-      function buildRenamed(originalName, pattern, number, padding) {
-        const [, ext] = splitExt(originalName);
-        const pad = Math.max(0, parseInt(padding, 10) || 0);
-        let numStr = String(number);
-        if (pad > 0) numStr = numStr.padStart(pad, '0');
-        let base = (pattern || '').trim();
-        if (!base) base = '#';
-        let stem = base.includes('#') ? base.replace(/#/g, numStr) : `${base}${numStr}`;
-        stem = stem.replace(/[\\/:*?"<>|]+/g, '_').trim();
-        if (!stem) stem = numStr;
-        return ext ? `${stem}.${ext}` : stem;
+      function humanSize(bytes) {
+        const b = Number(bytes) || 0;
+        if (b < 1024) return b + ' B';
+        if (b < 1024 * 1024) return (b / 1024).toFixed(0) + ' KB';
+        return (b / (1024 * 1024)).toFixed(1) + ' MB';
       }
 
-      function planRenames() {
-        const pattern = renamePattern.value;
-        const start = parseInt(renameStart.value, 10) || 0;
+      function fmtDate(ms) {
+        const d = ms ? new Date(ms) : new Date();
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      }
+
+      // Resolve a pattern into a filename *stem* (no extension) for one item.
+      // `#` becomes the zero-padded running number; the (token) variables pull
+      // from the item's own metadata. The result mirrors what the server writes.
+      function buildStem(it, number) {
         const padding = parseInt(renamePadding.value, 10) || 0;
-        const used = {};
-        return renameFiles.map((f, idx) => {
-          let name = buildRenamed(f.name, pattern, start + idx, padding);
-          if (used[name]) {
-            used[name] += 1;
-            const [stem, ext] = splitExt(name);
-            name = ext ? `${stem}_${used[name]}.${ext}` : `${stem}_${used[name]}`;
+        const pad = Math.max(0, padding);
+        let numStr = String(number);
+        if (pad > 0) numStr = numStr.padStart(pad, '0');
+
+        let base = (renamePattern.value || '').trim();
+        if (!base) base = '#';
+
+        const [stemName, ext] = splitExt(it ? it.name : 'image.png');
+        const size = it ? it.file.size : 0;
+
+        let out = base;
+        // Number tokens first.
+        out = out.replace(/#/g, numStr);
+        out = out.replace(/\(n\)/gi, numStr);
+        // Metadata tokens (case-insensitive).
+        const map = {
+          '(fullname)': it ? it.name : 'image.png',
+          '(name)': stemName,
+          '(ext)': ext,
+          '(width)': it && it.width ? String(it.width) : '',
+          '(height)': it && it.height ? String(it.height) : '',
+          '(date)': fmtDate(),
+          '(moddate)': fmtDate(it ? it.modified : 0),
+          '(size)': humanSize(size).replace(/\s+/g, ''),
+          '(sizekb)': String(Math.max(1, Math.round(size / 1024))),
+          '(sizeb)': String(size),
+        };
+        for (const [tok, val] of Object.entries(map)) {
+          out = out.split(new RegExp(escapeRegExp(tok), 'gi')).join(val);
+        }
+
+        // When the pattern has no number/variable token at all, append the
+        // number so a constant pattern still yields unique names.
+        const hadToken = /#|\([a-z]+\)/i.test(base);
+        if (!hadToken) out = `${out}${numStr}`;
+
+        out = out.replace(/[\\/:*?"<>|]+/g, '_').trim();
+        if (!out) out = numStr;
+        return out;
+      }
+
+      function escapeRegExp(s) {
+        return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      }
+
+      // Decide the output extension from the Format selector ("original" keeps
+      // each file's own extension; otherwise force the chosen one).
+      function outExt(originalName) {
+        const fmt = renameFormatValue;
+        if (fmt === 'jpg') return 'jpg';
+        if (fmt === 'png' || fmt === 'webp') return fmt;
+        return splitExt(originalName)[1];
+      }
+
+      // Plan the final names (stem + extension), de-duplicating collisions.
+      // Returns { stems: [...], names: [...] } — stems go to the server.
+      function planRenames() {
+        const start = parseInt(renameStart.value, 10) || 0;
+        const usedStems = {};
+        const usedNames = {};
+        const stems = [];
+        const names = [];
+        renameItems.forEach((it, idx) => {
+          let stem = buildStem(it, start + idx);
+          if (usedStems[stem]) {
+            usedStems[stem] += 1;
+            stem = `${stem}_${usedStems[stem]}`;
           } else {
-            used[name] = 1;
+            usedStems[stem] = 1;
           }
-          return name;
+          stems.push(stem);
+
+          const ext = outExt(it.name);
+          let name = ext ? `${stem}.${ext}` : stem;
+          if (usedNames[name]) {
+            usedNames[name] += 1;
+            name = ext ? `${stem}_${usedNames[name]}.${ext}` : `${stem}_${usedNames[name]}`;
+          } else {
+            usedNames[name] = 1;
+          }
+          names.push(name);
         });
+        return { stems, names };
+      }
+
+      // The dimension/size line for one card. Kept separate so async size
+      // reads can refresh a single card in place instead of rebuilding the
+      // whole gallery (which is what made big batches janky).
+      function cardSubHtml(it) {
+        const dims = it.width && it.height ? `${it.width}×${it.height} · ` : '';
+        return it.fromPdf
+          ? `<span class="ic-pdf">PDF</span> · ${dims}${humanSize(it.file.size)}`
+          : `${dims}${humanSize(it.file.size)}`;
       }
 
       function renderRenameList() {
-        renameCount.textContent = renameFiles.length;
-        renameBtn.disabled = renameFiles.length === 0;
+        const n = renameItems.length;
+        renameCount.textContent = n;
+        renameBtn.disabled = n === 0;
 
-        // Live example from the first file (or a generic .png).
+        // Toggle between the big empty dropzone and the workspace.
+        const hasImages = n > 0;
+        renameWorkspace.style.display = hasImages ? '' : 'none';
+        renameDropCard.style.display = hasImages ? 'none' : '';
+
+        // Live example from the first file (or a generic placeholder).
         const start = parseInt(renameStart.value, 10) || 0;
-        const sampleName = renameFiles.length ? renameFiles[0].name : 'image.png';
-        renameExample.textContent = buildRenamed(sampleName, renamePattern.value, start, renamePadding.value);
+        if (n) {
+          const exStem = buildStem(renameItems[0], start);
+          const exExt = outExt(renameItems[0].name);
+          renameExample.textContent = exExt ? `${exStem}.${exExt}` : exStem;
+        } else {
+          renameExample.textContent = buildStem(null, start) + '.png';
+        }
 
-        if (!renameFiles.length) {
-          renameList.innerHTML = '<div class="rename-empty">No images yet. Add some to see the before → after names.</div>';
-          renameLabel.textContent = 'Drop images here or click to browse';
+        if (!n) {
+          renameLabel.textContent = 'Drop images or a PDF here, or click to browse';
+          renameList.innerHTML = '';
           return;
         }
-        renameLabel.textContent = `${renameFiles.length} image${renameFiles.length === 1 ? '' : 's'} ready`;
 
-        const newNames = planRenames();
-        const rows = renameFiles.map((f, idx) => {
-          return `<div class="rename-row">
-            <span class="r-old" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</span>
-            <span class="r-arrow">→</span>
-            <span class="r-new" title="${escapeHtml(newNames[idx])}">${escapeHtml(newNames[idx])}</span>
-            <button class="r-del" type="button" data-idx="${idx}" title="Remove" aria-label="Remove">×</button>
+        const { names } = planRenames();
+        renameList.innerHTML = renameItems.map((it, idx) => {
+          return `<div class="img-card" data-idx="${idx}">
+            <div class="img-thumb" data-view="${idx}" role="button" tabindex="0" title="View" aria-label="View ${escapeHtml(it.name)}">
+              <img src="${it.url}" alt="" loading="lazy" decoding="async" />
+              <span class="thumb-zoom">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+              </span>
+            </div>
+            <div class="img-info">
+              <span class="ic-old" title="${escapeHtml(it.name)}">${escapeHtml(it.name)}</span>
+              <span class="ic-new" title="${escapeHtml(names[idx])}">${escapeHtml(names[idx])}</span>
+              <span class="ic-sub">${cardSubHtml(it)}</span>
+            </div>
+            <button class="ic-del" type="button" data-del="${idx}" title="Remove" aria-label="Remove ${escapeHtml(it.name)}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
           </div>`;
-        });
-        renameList.innerHTML = rows.join('');
+        }).join('');
       }
 
-      function addRenameFiles(fileList) {
-        const incoming = Array.from(fileList || []).filter((f) => f.type.startsWith('image/'));
-        if (!incoming.length) {
-          renameStatusMsg('Those weren\u2019t images. Add PNG, JPG, GIF or WEBP files.', 'error');
+      // Refresh just one card's dimension line in place (used as async image
+      // sizes arrive). Falls back to nothing if the card isn't in the DOM yet.
+      function updateCardSub(idx) {
+        const sub = renameList.querySelector(`.img-card[data-idx="${idx}"] .ic-sub`);
+        if (sub) sub.innerHTML = cardSubHtml(renameItems[idx]);
+      }
+
+      // Coalesce many render requests into a single rebuild per animation
+      // frame, in case a future caller needs to schedule re-renders cheaply.
+      let renameRenderRAF = 0;
+      function renderRenameListSoon() {
+        if (renameRenderRAF) return;
+        renameRenderRAF = requestAnimationFrame(() => {
+          renameRenderRAF = 0;
+          renderRenameList();
+        });
+      }
+
+      // Lightweight update for when only the naming changes (typing a pattern,
+      // changing start/padding/format). Rewrites the "new name" label + example
+      // in place instead of rebuilding every card and re-decoding every image.
+      function updateRenameNames() {
+        const n = renameItems.length;
+        const start = parseInt(renameStart.value, 10) || 0;
+        if (n) {
+          const exStem = buildStem(renameItems[0], start);
+          const exExt = outExt(renameItems[0].name);
+          renameExample.textContent = exExt ? `${exStem}.${exExt}` : exStem;
+        } else {
+          renameExample.textContent = buildStem(null, start) + '.png';
           return;
         }
-        renameFiles = renameFiles.concat(incoming);
-        renameStatusMsg(`${renameFiles.length} image${renameFiles.length === 1 ? '' : 's'} ready. Set a pattern, then download.`, null);
+        const { names } = planRenames();
+        const labels = renameList.querySelectorAll('.img-card .ic-new');
+        // If the DOM is out of sync with the data, fall back to a full render.
+        if (labels.length !== n) { renderRenameList(); return; }
+        labels.forEach((el, idx) => {
+          el.textContent = names[idx];
+          el.title = names[idx];
+        });
+      }
+
+      // Turn a data: URL into a File so it can be uploaded like any image.
+      async function dataUrlToFile(dataUrl, name) {
+        const res = await fetch(dataUrl);
+        const blob = await res.blob();
+        return new File([blob], name, { type: blob.type || 'image/png' });
+      }
+
+      // Dimensions come for free from the thumbnail that's already being
+      // lazy-loaded: when a card scrolls into view its <img> loads, we read its
+      // natural size and patch that card's line in place. Off-screen images are
+      // never decoded, so a gallery of thousands stays light. (load doesn't
+      // bubble, so we listen in the capture phase.)
+      renameList.addEventListener(
+        'load',
+        (e) => {
+          const img = e.target;
+          if (!img || img.tagName !== 'IMG') return;
+          const card = img.closest('.img-card');
+          if (!card) return;
+          const idx = parseInt(card.dataset.idx, 10);
+          const it = renameItems[idx];
+          if (!it || (it.width && it.height)) return;
+          it.width = img.naturalWidth;
+          it.height = img.naturalHeight;
+          updateCardSub(idx);
+        },
+        true
+      );
+
+      function addImageFiles(files) {
+        const added = files.map((f) => ({
+          file: f,
+          url: URL.createObjectURL(f),
+          name: f.name,
+          fromPdf: false,
+          width: 0,
+          height: 0,
+          modified: f.lastModified || Date.now(),
+        }));
+        renameItems = renameItems.concat(added);
+        // Dimensions fill in lazily from each thumbnail's load event (above).
+      }
+
+      async function addPdf(file) {
+        renameStatusMsg(`Converting <strong>${escapeHtml(file.name)}</strong> to images…`, 'busy');
+        const fd = new FormData();
+        fd.append('file', file, file.name);
+        const res = await fetch('/api/rename/pdf-to-images', { method: 'POST', body: fd });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(extractErrorMessage(data && data.detail, res.status));
+        }
+        const data = await res.json();
+        const pages = data.images || [];
+        for (const pg of pages) {
+          const f = await dataUrlToFile(pg.data_url, pg.name);
+          renameItems.push({
+            file: f,
+            url: pg.data_url,
+            name: pg.name,
+            fromPdf: true,
+            width: pg.width || 0,
+            height: pg.height || 0,
+            modified: Date.now(),
+          });
+        }
+        return pages.length;
+      }
+
+      async function addRenameFiles(fileList) {
+        const all = Array.from(fileList || []);
+        if (!all.length) return;
+
+        const images = all.filter((f) => f.type.startsWith('image/'));
+        const pdfs = all.filter(
+          (f) => f.type === 'application/pdf' || /\.pdf$/i.test(f.name)
+        );
+        const ignored = all.length - images.length - pdfs.length;
+
+        if (!images.length && !pdfs.length) {
+          renameStatusMsg('Those weren\u2019t images or PDFs. Add PNG, JPG, GIF, WEBP or a PDF.', 'error');
+          return;
+        }
+
+        if (images.length) addImageFiles(images);
+
+        let pdfPages = 0;
+        try {
+          for (const pdf of pdfs) {
+            pdfPages += await addPdf(pdf);
+          }
+        } catch (e) {
+          renderRenameList();
+          renameStatusMsg(e.message, 'error');
+          return;
+        }
+
         renderRenameList();
+        const parts = [];
+        if (images.length) parts.push(`${images.length} image${images.length === 1 ? '' : 's'}`);
+        if (pdfPages) parts.push(`${pdfPages} page${pdfPages === 1 ? '' : 's'} from PDF`);
+        let msg = `Added ${parts.join(' + ')}. ${renameItems.length} total — set a pattern, then download.`;
+        if (ignored) msg += ` (${ignored} unsupported file${ignored === 1 ? '' : 's'} skipped.)`;
+        renameStatusMsg(msg, null);
+      }
+
+      function removeRenameItem(idx) {
+        const it = renameItems[idx];
+        if (it && !it.fromPdf && it.url.startsWith('blob:')) {
+          URL.revokeObjectURL(it.url);
+        }
+        renameItems.splice(idx, 1);
       }
 
       // Reset the rename tool back to its empty state (keeps the pattern/start
       // settings so a repeat batch is quick; clears the loaded images).
       function clearRenameTool() {
-        renameFiles = [];
+        renameItems.forEach((it) => {
+          if (!it.fromPdf && it.url.startsWith('blob:')) URL.revokeObjectURL(it.url);
+        });
+        renameItems = [];
         if (renameInput) renameInput.value = '';
+        closeLightbox();
         renderRenameList();
-        renameStatusMsg('<span class="muted">Add images, set a pattern, then download.</span>');
+        renameStatusMsg('<span class="muted">Add images or a PDF, set a pattern, then download.</span>');
       }
+
+      // ---- Lightbox (view one-by-one) ----
+      function openLightbox(idx) {
+        if (idx < 0 || idx >= renameItems.length) return;
+        lbIndex = idx;
+        const it = renameItems[idx];
+        lbImg.src = it.url;
+        lbImg.alt = it.name;
+        lbName.textContent = it.name;
+        lbPos.textContent = `${idx + 1} / ${renameItems.length}`;
+        lbPrev.disabled = idx === 0;
+        lbNext.disabled = idx === renameItems.length - 1;
+        lb.classList.add('open');
+      }
+      function closeLightbox() {
+        lb.classList.remove('open');
+        lbImg.removeAttribute('src');
+        lbIndex = -1;
+      }
+      function stepLightbox(delta) {
+        const next = lbIndex + delta;
+        if (next >= 0 && next < renameItems.length) openLightbox(next);
+      }
+
+      lbPrev.addEventListener('click', () => stepLightbox(-1));
+      lbNext.addEventListener('click', () => stepLightbox(1));
+      lbClose.addEventListener('click', closeLightbox);
+      // Click anywhere that isn't the image, a nav arrow or a bar button closes
+      // the viewer — covers the empty dark space on either side of the picture.
+      lb.addEventListener('click', (e) => {
+        if (e.target.closest('.lb-nav') || e.target.closest('.lb-bar') || e.target === lbImg) return;
+        closeLightbox();
+      });
+      lbDelete.addEventListener('click', () => {
+        if (lbIndex < 0) return;
+        const removed = lbIndex;
+        removeRenameItem(removed);
+        renderRenameList();
+        if (!renameItems.length) {
+          closeLightbox();
+          renameStatusMsg('<span class="muted">Add images or a PDF, set a pattern, then download.</span>');
+          return;
+        }
+        openLightbox(Math.min(removed, renameItems.length - 1));
+      });
+      document.addEventListener('keydown', (e) => {
+        if (!lb.classList.contains('open')) return;
+        if (e.key === 'Escape') closeLightbox();
+        else if (e.key === 'ArrowLeft') stepLightbox(-1);
+        else if (e.key === 'ArrowRight') stepLightbox(1);
+      });
 
       renameDrop.addEventListener('click', () => renameInput.click());
       renameDrop.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); renameInput.click(); }
       });
+      renameAddMore.addEventListener('click', () => renameInput.click());
+      renameClearAll.addEventListener('click', clearRenameTool);
       renameInput.addEventListener('change', (e) => { addRenameFiles(e.target.files); renameInput.value = ''; });
       renameDrop.addEventListener('dragover', (e) => { e.preventDefault(); renameDrop.classList.add('dragover'); });
       renameDrop.addEventListener('dragleave', () => renameDrop.classList.remove('dragover'));
@@ -2970,72 +4794,306 @@
       });
 
       renameList.addEventListener('click', (e) => {
-        const del = e.target.closest('.r-del');
-        if (!del) return;
-        const idx = parseInt(del.dataset.idx, 10);
-        if (Number.isFinite(idx)) {
-          renameFiles.splice(idx, 1);
-          renderRenameList();
+        const del = e.target.closest('[data-del]');
+        if (del) {
+          const idx = parseInt(del.dataset.del, 10);
+          if (Number.isFinite(idx)) {
+            removeRenameItem(idx);
+            renderRenameList();
+            if (!renameItems.length) renameStatusMsg('<span class="muted">Add images or a PDF, set a pattern, then download.</span>');
+          }
+          return;
+        }
+        const view = e.target.closest('[data-view]');
+        if (view) {
+          const idx = parseInt(view.dataset.view, 10);
+          if (Number.isFinite(idx)) openLightbox(idx);
+        }
+      });
+      renameList.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        const view = e.target.closest('[data-view]');
+        if (view) {
+          e.preventDefault();
+          const idx = parseInt(view.dataset.view, 10);
+          if (Number.isFinite(idx)) openLightbox(idx);
         }
       });
 
       [renamePattern, renameStart, renamePadding].forEach((el) =>
-        el.addEventListener('input', renderRenameList)
+        el.addEventListener('input', updateRenameNames)
       );
 
-      renameBtn.addEventListener('click', async () => {
-        if (!renameFiles.length) return;
-        renameBtn.disabled = true;
-        renameBtnIcon.innerHTML = '<span class="spinner"></span>';
-        renameBtnText.textContent = 'Zipping…';
-        renameStatusMsg('Renaming and packing your images…', 'busy');
+      // ---- Format dropdown (custom, themed to match Variables) ----
+      function buildFormatMenu() {
+        renameFormatMenu.innerHTML = FORMAT_OPTIONS.map((o) =>
+          `<button type="button" class="cs-option" role="option" data-value="${o.value}" aria-selected="${o.value === renameFormatValue ? 'true' : 'false'}">
+            <svg class="cs-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+            <span>${o.label}</span>
+          </button>`
+        ).join('');
+      }
+      buildFormatMenu();
 
-        try {
-          const fd = new FormData();
-          renameFiles.forEach((f) => fd.append('files', f, f.name));
-          fd.append('pattern', renamePattern.value || '#');
-          fd.append('start', String(parseInt(renameStart.value, 10) || 0));
-          fd.append('padding', String(parseInt(renamePadding.value, 10) || 0));
+      function toggleFormatMenu(open) {
+        const willOpen = open === undefined ? !renameFormatMenu.classList.contains('open') : open;
+        renameFormatMenu.classList.toggle('open', willOpen);
+        renameFormatTrigger.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+      }
+      function setRenameFormat(value) {
+        const opt = FORMAT_OPTIONS.find((o) => o.value === value) || FORMAT_OPTIONS[0];
+        renameFormatValue = opt.value;
+        renameFormatLabel.textContent = opt.label;
+        buildFormatMenu();
+        renderRenameList();
+      }
+      renameFormatTrigger.addEventListener('click', (e) => { e.stopPropagation(); toggleFormatMenu(); });
+      renameFormatMenu.addEventListener('click', (e) => {
+        const opt = e.target.closest('.cs-option');
+        if (!opt) return;
+        setRenameFormat(opt.dataset.value);
+        toggleFormatMenu(false);
+        renameFormatTrigger.focus();
+      });
 
-          const res = await fetch('/api/rename', { method: 'POST', body: fd });
+      // ---- Variables dropdown ----
+      function buildVarMenu() {
+        renameVarMenu.innerHTML = RENAME_VARS.map((v) =>
+          `<button type="button" class="var-item" role="menuitem" data-token="${escapeHtml(v.token)}">
+            <span class="vi-token">${escapeHtml(v.token)}</span>
+            <span class="vi-desc">${escapeHtml(v.desc)}</span>
+          </button>`
+        ).join('');
+      }
+      buildVarMenu();
+
+      function toggleVarMenu(open) {
+        const willOpen = open === undefined ? !renameVarMenu.classList.contains('open') : open;
+        renameVarMenu.classList.toggle('open', willOpen);
+        renameVarBtn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+      }
+      renameVarBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleVarMenu(); });
+      renameVarMenu.addEventListener('click', (e) => {
+        const item = e.target.closest('.var-item');
+        if (!item) return;
+        const token = item.dataset.token;
+        // Insert at the caret, replacing any selected text. The default pattern
+        // is just "#", so the first pick replaces it instead of stacking.
+        const inp = renamePattern;
+        let s = inp.selectionStart != null ? inp.selectionStart : inp.value.length;
+        let eC = inp.selectionEnd != null ? inp.selectionEnd : inp.value.length;
+        // If nothing is selected and the field holds only the default "#"
+        // placeholder, swap the whole thing so picks don't pile onto it.
+        if (s === eC && inp.value.trim() === '#') { s = 0; eC = inp.value.length; }
+        inp.value = inp.value.slice(0, s) + token + inp.value.slice(eC);
+        // Leave the just-inserted token highlighted, so the next pick *replaces*
+        // it (swap one variable for another) rather than appending after it.
+        inp.focus();
+        inp.setSelectionRange(s, s + token.length);
+        renderRenameList();
+        toggleVarMenu(false);
+      });
+      document.addEventListener('click', (e) => {
+        if (renameVarMenu.classList.contains('open') &&
+            !renameVarMenu.contains(e.target) && e.target !== renameVarBtn) {
+          toggleVarMenu(false);
+        }
+        if (renameFormatMenu.classList.contains('open') &&
+            !renameFormatMenu.contains(e.target) && !renameFormatTrigger.contains(e.target)) {
+          toggleFormatMenu(false);
+        }
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        if (renameVarMenu.classList.contains('open')) toggleVarMenu(false);
+        if (renameFormatMenu.classList.contains('open')) toggleFormatMenu(false);
+      });
+
+      // Upload the batch to a streamed session and download the packed ZIP.
+      // Files go up in small groups so we never build one giant multipart body
+      // (which would hit the 1000-file cap and balloon memory), and the result
+      // streams straight to disk on download — so 1 GB+ batches work.
+      const RENAME_UPLOAD_CHUNK = 150; // files per request
+
+      async function runRenameDownload() {
+        const { stems } = planRenames();
+        const fmt = renameFormatValue || 'original';
+        const total = renameItems.length;
+
+        // 1) Open a session.
+        let sessionId;
+        {
+          const res = await fetch('/api/rename/session', { method: 'POST' });
           if (!res.ok) {
             const data = await res.json().catch(() => ({}));
             throw new Error(extractErrorMessage(data && data.detail, res.status));
           }
-          const blob = await res.blob();
+          sessionId = (await res.json()).session_id;
+        }
+
+        try {
+          // 2) Upload files in chunks, keeping stems aligned to upload order.
+          let sent = 0;
+          for (let i = 0; i < total; i += RENAME_UPLOAD_CHUNK) {
+            const fd = new FormData();
+            const slice = renameItems.slice(i, i + RENAME_UPLOAD_CHUNK);
+            slice.forEach((it) => fd.append('files', it.file, it.name));
+            const res = await fetch(`/api/rename/session/${sessionId}/files`, {
+              method: 'POST',
+              body: fd,
+            });
+            if (!res.ok) {
+              const data = await res.json().catch(() => ({}));
+              throw new Error(extractErrorMessage(data && data.detail, res.status));
+            }
+            sent += slice.length;
+            renameStatusMsg(`Uploading… ${sent} / ${total}`, 'busy');
+          }
+
+          // 3) Finalize: server packs the ZIP from disk.
+          renameStatusMsg('Renaming and packing your images…', 'busy');
+          const ffd = new FormData();
+          ffd.append('pattern', renamePattern.value || '#');
+          ffd.append('start', String(parseInt(renameStart.value, 10) || 0));
+          ffd.append('padding', String(parseInt(renamePadding.value, 10) || 0));
+          ffd.append('output_format', fmt);
+          ffd.append('names', JSON.stringify(stems));
+          const fres = await fetch(`/api/rename/session/${sessionId}/finalize`, {
+            method: 'POST',
+            body: ffd,
+          });
+          if (!fres.ok) {
+            const data = await fres.json().catch(() => ({}));
+            throw new Error(extractErrorMessage(data && data.detail, fres.status));
+          }
+          const { download_url: downloadUrl, count } = await fres.json();
+
+          // 4) Download — streamed from disk on the server side.
           if (isDesktopApp()) {
-            // Webview has no download manager: hand the bytes to the native
-            // Save-As bridge instead of a blob: link that would do nothing.
-            const b64 = await blobToBase64(blob);
-            const result = await window.pywebview.api.save_base64(b64, 'renamed_images.zip');
+            const result = await window.pywebview.api.save_url(downloadUrl, 'renamed_images.zip');
             if (result && result.ok) {
-              renameStatusMsg(`Done. Saved <strong>${renameFiles.length}</strong> renamed image${renameFiles.length === 1 ? '' : 's'} as a ZIP.`, 'ok');
+              renameStatusMsg(`Done. Saved <strong>${count}</strong> renamed image${count === 1 ? '' : 's'} as a ZIP.`, 'ok');
             } else if (result && result.cancelled) {
               renameStatusMsg('Save cancelled.', null);
             } else {
               renameStatusMsg(`Couldn't save: ${(result && result.error) || 'unknown error'}`, 'error');
             }
           } else {
-            const url = URL.createObjectURL(blob);
+            // A plain navigation lets the browser stream the file to disk
+            // without buffering the whole ZIP in a JS blob.
             const a = document.createElement('a');
-            a.href = url;
+            a.href = downloadUrl;
             a.download = 'renamed_images.zip';
             document.body.appendChild(a);
             a.click();
             a.remove();
-            setTimeout(() => URL.revokeObjectURL(url), 4000);
-            renameStatusMsg(`Done. Renamed <strong>${renameFiles.length}</strong> image${renameFiles.length === 1 ? '' : 's'} into a ZIP.`, 'ok');
+            renameStatusMsg(`Done. Renamed <strong>${count}</strong> image${count === 1 ? '' : 's'} into a ZIP.`, 'ok');
           }
+        } finally {
+          // Best-effort cleanup of the server-side staging dir. On browsers the
+          // download has already started streaming from the finalized ZIP, so
+          // give it a head start before dropping the session.
+          const drop = () => fetch(`/api/rename/session/${sessionId}`, { method: 'DELETE' }).catch(() => {});
+          if (isDesktopApp()) drop();
+          else setTimeout(drop, 60000);
+        }
+      }
+
+      renameBtn.addEventListener('click', async () => {
+        if (!renameItems.length) return;
+        renameBtn.disabled = true;
+        renameBtnIcon.innerHTML = '<span class="spinner"></span>';
+        renameBtnText.textContent = 'Zipping…';
+        renameStatusMsg('Preparing your batch…', 'busy');
+
+        try {
+          await runRenameDownload();
         } catch (e) {
           renameStatusMsg(e.message, 'error');
         } finally {
-          renameBtn.disabled = renameFiles.length === 0;
+          renameBtn.disabled = renameItems.length === 0;
           renameBtnIcon.innerHTML = ICONS.download;
           renameBtnText.textContent = 'Rename & Download ZIP';
         }
       });
 
       renderRenameList();
+
+      // ── How to Use modal ──────────────────────────────────────────────────
+      const howToBtn   = document.getElementById('howToBtn');
+      const howToModal = document.getElementById('howToModal');
+      const howToClose = document.getElementById('howToClose');
+
+      // Tab switching
+      const htTabs   = howToModal ? howToModal.querySelectorAll('.ht-tab')   : [];
+      const htPanels = howToModal ? howToModal.querySelectorAll('.ht-panel') : [];
+
+      function switchHtTab(targetKey) {
+        htTabs.forEach((t) => {
+          const isActive = t.dataset.htTab === targetKey;
+          t.classList.toggle('active', isActive);
+          t.setAttribute('aria-selected', String(isActive));
+        });
+        htPanels.forEach((p) => {
+          const isActive = p.id === 'htPanel-' + targetKey;
+          p.classList.toggle('active', isActive);
+          // Lazy-load the iframe in the newly active panel
+          if (isActive) {
+            const iframe = p.querySelector('.ht-iframe');
+            if (iframe && (!iframe.src || iframe.src === window.location.href)) {
+              iframe.src = iframe.dataset.src;
+            }
+          } else {
+            // Pause video in panels that are hidden
+            const iframe = p.querySelector('.ht-iframe');
+            if (iframe) iframe.src = '';
+          }
+        });
+      }
+
+      htTabs.forEach((tab) => {
+        tab.addEventListener('click', () => switchHtTab(tab.dataset.htTab));
+      });
+
+      function openHowTo() {
+        howToModal.classList.add('open');
+        howToModal.removeAttribute('aria-hidden');
+        document.body.style.overflow = 'hidden';
+        // Load the first (active) tab's video on first open
+        const activePanel = howToModal.querySelector('.ht-panel.active');
+        if (activePanel) {
+          const iframe = activePanel.querySelector('.ht-iframe');
+          if (iframe && (!iframe.src || iframe.src === window.location.href)) {
+            iframe.src = iframe.dataset.src;
+          }
+        }
+        howToClose && howToClose.focus();
+      }
+
+      function closeHowTo() {
+        howToModal.classList.remove('open');
+        howToModal.setAttribute('aria-hidden', 'true');
+        // Pause all videos
+        howToModal.querySelectorAll('.ht-iframe').forEach((f) => { f.src = ''; });
+        document.body.style.overflow = '';
+        howToBtn && howToBtn.focus();
+      }
+
+      if (howToBtn)   howToBtn.addEventListener('click', openHowTo);
+      if (howToClose) howToClose.addEventListener('click', closeHowTo);
+
+      // Close on backdrop click
+      howToModal && howToModal.addEventListener('click', (e) => {
+        if (e.target === howToModal) closeHowTo();
+      });
+
+      // Close on Escape key
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && howToModal && howToModal.classList.contains('open')) {
+          closeHowTo();
+        }
+      });
+
     </script>
   </body>
 </html>

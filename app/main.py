@@ -21,7 +21,7 @@ from fastapi.staticfiles import StaticFiles
 from .config import Settings
 from .routers.crop import router as crop_router
 from .routers.rename import router as rename_router
-from .utils.file_utils import cleanup_old_jobs
+from .utils.file_utils import cleanup_old_jobs, has_pending_jobs
 
 LOG_FORMAT = "%(asctime)s [%(levelname)s] %(name)s | %(message)s"
 logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
@@ -35,16 +35,28 @@ STATIC_DIR = BASE_DIR / "static"
 
 
 async def _cleanup_loop(temp_root: Path, older_than_seconds: int) -> None:
-    """Periodically delete old temp job directories."""
+    """Periodically delete old temp job directories.
+
+    Idle-aware: when there are no job directories on disk there is nothing to
+    clean, so the loop sleeps for a long interval instead of waking the CPU
+    every minute. This keeps an open-but-unused desktop app from spinning a
+    timer all day (battery-friendly). As soon as a job exists it polls at the
+    active cadence so stale jobs are still reaped promptly.
+    """
+
+    active_interval = 60
+    idle_interval = 600
 
     while True:
         try:
             deleted = await asyncio.to_thread(cleanup_old_jobs, str(temp_root), older_than_seconds)
             if deleted:
                 logger.info("cleanup_deleted=%s temp_root=%s", deleted, temp_root)
+            busy = await asyncio.to_thread(has_pending_jobs, str(temp_root))
         except Exception as exc:
             logger.exception("cleanup_failed error=%s", str(exc))
-        await asyncio.sleep(60)
+            busy = True
+        await asyncio.sleep(active_interval if busy else idle_interval)
 
 
 @asynccontextmanager

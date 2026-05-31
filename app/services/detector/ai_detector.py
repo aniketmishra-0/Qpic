@@ -340,7 +340,11 @@ class AIDetector:
         total_pages = len(page_images)
 
         for start_idx in range(0, total_pages, step):
-            batch_images = page_images[start_idx : start_idx + settings.AI_BATCH_SIZE]
+            # Page access may render on demand (lazy page view), so do it off the
+            # event loop to avoid blocking it while rasterising.
+            batch_images = await asyncio.to_thread(
+                lambda s=start_idx: list(page_images[s : s + settings.AI_BATCH_SIZE])
+            )
             if not batch_images:
                 break
 

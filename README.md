@@ -119,6 +119,44 @@ numbers in the body aren't mistaken for questions:
 The UI exposes this as a **Question numbering** dropdown. The chosen style is
 honoured by every detection tier (text, OCR and the AI vision prompt).
 
+## How to use the app
+
+Once the server is running (see *How to run* below), open **http://localhost:8000** in your browser. Here's the typical workflow:
+
+### 1. Upload a PDF
+- Click **"Choose PDF"** (or drag-and-drop a file onto the upload area).
+- Select your MCQ question paper PDF.
+
+### 2. Configure detection options
+| Option | What it does |
+|---|---|
+| **Question numbering** | `auto` works for most papers. Switch to `q` if questions are labelled `Q1/Q2…`, or `numbered` for bare `1. 2. 3.` style. |
+| **Online mode (AI)** | Toggle ON to allow the AI vision fallback for tricky layouts. Requires an API key in `.env`. Toggle OFF for a fully offline run. |
+| **Smart mode** | ON (default) — runs the full pipeline and opens the review canvas. OFF — skips review and goes straight to ZIP. |
+
+### 3. Analyze
+- Click **Analyze**. The app runs text → OCR → AI detection and shows a **review canvas** with every detected question box overlaid on the page previews.
+
+### 4. Review & fix detections
+- **Green boxes** = detected questions. Hover to see the question number.
+- **Review notes** on the right flag anything suspicious (cut-off crops, numbering gaps, missing options).
+- To fix a bad box: click its **Fix / Re-select** button, then drag the correct region on the page image.
+- To add a missed question: click **Draw**, drag a box around it.
+- To remove a duplicate: click the box → **Delete**.
+- **Snap to content** (on by default) auto-tightens any box you draw to the actual text/figure inside it.
+
+### 5. Download
+- Once happy with the review, click **Finalize & Download**.
+- Choose the download type:
+  - **Combined** — questions + solutions in one ZIP (`QScombined.zip`)
+  - **Questions only** — `Q.zip`
+  - **Solutions only** — `S.zip`
+
+### Rename Batch tab
+Switch to the **Rename Batch** tab to bulk-rename a folder of already-cropped images using a custom prefix and numbering scheme.
+
+---
+
 ## How to run
 
 ```bash

@@ -34,7 +34,7 @@ from ..services.detector.furniture import collect_document_furniture
 from ..services.detector.ocr_detector import OCRDetector
 from ..services.detector.pipeline import DetectionPipeline
 from ..services.page_filter import PageRangeError, apply_page_ranges, parse_page_ranges
-from ..services.pdf_service import pdf_to_images, validate_pdf
+from ..services.pdf_service import LazyPageImages, validate_pdf
 from ..services.review_service import build_analyzed_items, build_review_notes, drop_phantom_numbers
 from ..services.snap_service import snap_region
 from ..services.zip_service import COMBINED_ZIP, QUESTIONS_ZIP, SOLUTIONS_ZIP, create_zip_set
@@ -236,9 +236,9 @@ async def crop_pdf(
         description="JPG compression quality 1-100 (higher = better quality, larger file). Ignored for PNG.",
     ),
     use_ai: bool = Query(
-        True,
+        False,
         description="Online mode: allow the AI vision tier when a key is configured. "
-        "Set false to force a fully offline run (text/OCR only).",
+        "Defaults to off (fully offline text/OCR run); set true to opt into AI.",
     ),
     settings: Settings = Depends(get_settings),
     client: Optional[anthropic.AsyncAnthropic] = Depends(get_anthropic_client_optional),
@@ -297,7 +297,11 @@ async def crop_pdf(
     try:
         job_dir = await asyncio.to_thread(create_job_dir, job_id, temp_root)
 
-        page_images = await asyncio.to_thread(pdf_to_images, file_bytes, dpi)
+        # Lazy page view: pages are rasterised only when a detector asks for
+        # one, and at most a single page bitmap is held in memory at a time.
+        # A searchable PDF (text tier wins) renders zero pages here; the final
+        # crops are re-rendered straight from the PDF vector source regardless.
+        page_images = await asyncio.to_thread(LazyPageImages, file_bytes, dpi)
         total_pages = len(page_images)
         logger.info("request_id=%s job_id=%s stage=pdf_rendered total_pages=%s", request_id, job_id, total_pages)
 
@@ -335,6 +339,11 @@ async def crop_pdf(
             prefer_ai=use_ai,
             marker_style=style,
         )
+
+        # Detection is done with the page bitmaps; the crops below are rendered
+        # straight from the PDF vector source, so free the lazy view (and its
+        # open document) now instead of holding it for the rest of the request.
+        await asyncio.to_thread(page_images.close)
 
         # Crop exactly the pages the user listed (strict): items on any other
         # page are dropped so the output matches the requested pages precisely.
@@ -467,6 +476,7 @@ def _analyzed_to_detected(items: list[Any]) -> list[DetectedQuestion]:
                 q_num=(it.q_num or "0").strip() or "0",
                 is_solution=bool(it.is_solution),
                 segments=list(it.segments),
+                source=getattr(it, "source", "auto") or "auto",
             )
         )
     return out
@@ -483,9 +493,9 @@ async def analyze_pdf(
     has_answers: bool = Query(True),
     answer_pages: Optional[str] = Query(None),
     use_ai: bool = Query(
-        True,
+        False,
         description="Online mode: allow the AI vision tier when a key is configured. "
-        "Set false to force a fully offline run (text/OCR only).",
+        "Defaults to off (fully offline text/OCR run); set true to opt into AI.",
     ),
     settings: Settings = Depends(get_settings),
     client: Optional[anthropic.AsyncAnthropic] = Depends(get_anthropic_client_optional),
@@ -525,7 +535,7 @@ async def analyze_pdf(
         source_pdf = job_dir / "source.pdf"
         await asyncio.to_thread(source_pdf.write_bytes, file_bytes)
 
-        page_images = await asyncio.to_thread(pdf_to_images, file_bytes, dpi)
+        page_images = await asyncio.to_thread(LazyPageImages, file_bytes, dpi)
         total_pages = len(page_images)
 
         try:
@@ -552,6 +562,11 @@ async def analyze_pdf(
             if (marker_style or "auto").strip().lower() in ("auto", "q", "numbered")
             else "auto",
         )
+
+        # Page bitmaps are no longer needed: previews and text-line extents
+        # below are read straight from the PDF. Release the lazy view and its
+        # open document now.
+        await asyncio.to_thread(page_images.close)
 
         # Honour page-range filtering whenever the user scoped pages. The pages
         # the user typed are authoritative: anything outside them (e.g. the
@@ -723,6 +738,99 @@ async def analyze_pdf(
         raise
 
 
+@router.post("/prepare-manual", response_model=AnalyzeResponse)
+async def prepare_manual(
+    request: Request,
+    file: UploadFile = File(...),
+    dpi: int = Query(200, ge=72, le=600),
+    settings: Settings = Depends(get_settings),
+) -> AnalyzeResponse:
+    """Prepare a PDF for fully-manual cropping — no auto-detection runs.
+
+    This is the Manual Crop tool's entry point. It mirrors the cheap half of
+    ``/analyze`` (cache the source PDF, render lightweight page previews) but
+    deliberately skips the detection pipeline: it returns an empty item list so
+    the user draws every crop by hand in the same review canvas. The auto-crop
+    flow (``/crop`` and ``/analyze``) is untouched — manual mode simply never
+    calls the detector.
+    """
+
+    if file.content_type != "application/pdf":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=ERR_INVALID_FILE_TYPE)
+
+    file_bytes = await file.read()
+    if not file_bytes.startswith(b"%PDF"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=ERR_INVALID_PDF)
+
+    validate_pdf(file_bytes=file_bytes, settings=settings)
+
+    job_id = generate_job_id()
+    temp_root = _get_temp_root(request, settings)
+    request_id = getattr(request.state, "request_id", None)
+    logger.info("request_id=%s job_id=%s stage=prepare_manual_start", request_id, job_id)
+
+    job_dir: Optional[Path] = None
+    try:
+        job_dir = await asyncio.to_thread(create_job_dir, job_id, temp_root)
+
+        # Cache the source PDF so /snap and /finalize can re-render without a
+        # re-upload, exactly like the smart-analyze flow.
+        source_pdf = job_dir / "source.pdf"
+        await asyncio.to_thread(source_pdf.write_bytes, file_bytes)
+
+        # Render every page as a preview so the user can crop from any page.
+        preview_dpi = min(dpi, 120)
+
+        def _write_previews() -> tuple[int, list[PageInfo]]:
+            infos: list[PageInfo] = []
+            with fitz.open(stream=file_bytes, filetype="pdf") as doc:
+                zoom = preview_dpi / 72.0
+                matrix = fitz.Matrix(zoom, zoom)
+                for idx in range(doc.page_count):
+                    page_no = idx + 1
+                    page = doc.load_page(idx)
+                    rect = page.rect
+                    pix = page.get_pixmap(matrix=matrix, colorspace=fitz.csRGB, alpha=False)
+                    out_path = job_dir / f"page_{page_no:03d}.png"
+                    pix.save(str(out_path))
+                    infos.append(
+                        PageInfo(
+                            page=page_no,
+                            width_pt=float(rect.width),
+                            height_pt=float(rect.height),
+                            preview_url=f"/api/analyze/{job_id}/page/{page_no}",
+                        )
+                    )
+                return doc.page_count, infos
+
+        total_pages, pages_info = await asyncio.to_thread(_write_previews)
+        logger.info(
+            "request_id=%s job_id=%s stage=prepare_manual_done total_pages=%s",
+            request_id,
+            job_id,
+            total_pages,
+        )
+
+        return AnalyzeResponse(
+            job_id=job_id,
+            total_pages=total_pages,
+            method_used="text",  # no detection ran; placeholder for the schema
+            pages=pages_info,
+            items=[],
+            notes=[],
+            needs_review=False,
+        )
+    except HTTPException:
+        if job_dir is not None:
+            await asyncio.to_thread(safe_cleanup_job, job_id, temp_root)
+        raise
+    except Exception as exc:
+        logger.exception("request_id=%s job_id=%s stage=prepare_manual_error error=%s", request_id, job_id, str(exc))
+        if job_dir is not None:
+            await asyncio.to_thread(safe_cleanup_job, job_id, temp_root)
+        raise
+
+
 @router.get("/analyze/{job_id}/page/{page_no}")
 async def analyze_page_preview(
     request: Request,
@@ -856,6 +964,9 @@ async def finalize_crop(
                     detection_dpi=dpi,
                     crop_dpi=crop_dpi,
                     furniture_by_page=furniture_by_page,
+                    # Left-align column-split parts only for hand-drawn items so
+                    # the auto path's output is untouched.
+                    align_parts=(getattr(question, "source", "auto") == "manual"),
                 )
                 saved = save_question_image(
                     image=img,
@@ -894,7 +1005,7 @@ async def finalize_crop(
         job_id=job_id,
         total_questions=total_questions,
         stitched_questions=stitched_questions,
-        method_used="ai",  # finalize is post-review; method is informational only
+        method_used="text",  # finalize is post-review crop only; no detection runs here
         download_url=f"/api/crop/download/{job_id}",
         questions_download_url=(
             f"/api/crop/download/{job_id}?kind=questions" if question_paths else None

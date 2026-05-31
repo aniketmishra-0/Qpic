@@ -61,3 +61,22 @@ def safe_cleanup_job(job_id: str, temp_dir: str) -> None:
         shutil.rmtree(get_job_dir(job_id, temp_dir), ignore_errors=True)
     except Exception:
         return
+
+
+def has_pending_jobs(temp_dir: str) -> bool:
+    """True if the temp root currently holds any job directory.
+
+    Used by the periodic cleanup loop to back off when the app is idle: with no
+    jobs on disk there's nothing to scan, so the loop can sleep much longer and
+    avoid waking the CPU every minute (battery-friendly for a desktop app left
+    open all day).
+    """
+
+    root = Path(temp_dir)
+    if not root.exists():
+        return False
+    try:
+        return any(p.is_dir() for p in root.iterdir())
+    except OSError:
+        return False
+

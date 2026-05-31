@@ -113,10 +113,20 @@ def snap_region(
     box_w_pct = original["x_end_pct"] - original["x_start_pct"]
     box_h_pct = original["y_end_pct"] - original["y_start_pct"]
 
-    new_x_start = original["x_start_pct"] + (c_left / w) * box_w_pct - _MARGIN_PCT
-    new_x_end = original["x_start_pct"] + ((c_right + 1) / w) * box_w_pct + _MARGIN_PCT
+    # Vertical: tighten to the actual content (with a small margin).
     new_y_start = original["y_start_pct"] + (r_top / h) * box_h_pct - _MARGIN_PCT
     new_y_end = original["y_start_pct"] + ((r_bot + 1) / h) * box_h_pct + _MARGIN_PCT
+
+    # Horizontal: KEEP the left edge exactly where the user drew it. That drawn
+    # left edge is the alignment reference — every part of a column-split
+    # question (the stem + "(A)/(B)" box and the spilled "(C)/(D)" box) is drawn
+    # at the same left x, so preserving it and stitching flush-left keeps the
+    # option indentation identical. Snapping the left edge to ink/column moved it
+    # per-part (stem vs "(C)") and made "(C)/(D)" drift off "(A)/(B)".
+    new_x_start = original["x_start_pct"]
+    # Right edge: tighten to content (with a margin) so the box doesn't balloon
+    # out to grab the empty right half.
+    new_x_end = original["x_start_pct"] + ((c_right + 1) / w) * box_w_pct + _MARGIN_PCT
 
     snapped = {
         "x_start_pct": _clamp(min(new_x_start, original["x_end_pct"])),

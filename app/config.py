@@ -68,6 +68,11 @@ class Settings(BaseSettings):
 
     MAX_PDF_SIZE_MB: int = 50
     MAX_PAGES: int = 100
+    # Hard ceiling for a single streamed rename batch (across all chunks). The
+    # batch never lives in memory — files are spooled to disk and the ZIP is
+    # built from disk — so this can be large. Bump it if you routinely pack
+    # multi-gigabyte batches.
+    MAX_RENAME_BATCH_MB: int = 4096
     TEMP_DIR: str = "temp"
     # Job dirs (incl. the source PDF + page previews cached for the smart
     # review/manual-crop flow) are kept this long. It must comfortably exceed

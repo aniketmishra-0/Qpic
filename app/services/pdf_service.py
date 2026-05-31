@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import threading
+from typing import Iterator, List, Union
 
 import fitz
 from fastapi import HTTPException, status
@@ -48,24 +50,105 @@ def validate_pdf(file_bytes: bytes, settings: Settings) -> None:
         )
 
 
-def pdf_to_images(file_bytes: bytes, dpi: int) -> list[Image.Image]:
-    """Convert PDF bytes to list of PIL Images.
+def render_page_image(doc: "fitz.Document", page_index: int, dpi: int) -> Image.Image:
+    """Rasterize a single page of an open PDF to a PIL Image (RGB)."""
 
-    Uses fitz.open(stream=...) and does not write the PDF to disk.
-    Renders using RGB colorspace.
-    """
-
-    images: list[Image.Image] = []
     zoom = dpi / 72.0
     matrix = fitz.Matrix(zoom, zoom)
+    page = doc.load_page(page_index)
+    pix = page.get_pixmap(matrix=matrix, colorspace=fitz.csRGB, alpha=False)
+    return Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+
+
+def pdf_to_images(file_bytes: bytes, dpi: int) -> list[Image.Image]:
+    """Convert PDF bytes to a list of PIL Images.
+
+    Eager renderer kept for callers (and tests) that genuinely want every page
+    materialised at once. The detection path uses :class:`LazyPageImages`
+    instead so a searchable PDF renders zero pages and a scanned one holds at
+    most a single page in memory.
+    """
 
     with fitz.open(stream=file_bytes, filetype="pdf") as doc:
-        for page in doc:
-            pix = page.get_pixmap(matrix=matrix, colorspace=fitz.csRGB, alpha=False)
-            img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
-            images.append(img)
+        return [render_page_image(doc, i, dpi) for i in range(doc.page_count)]
 
-    return images
+
+class LazyPageImages:
+    """A list-like view of a PDF's pages that renders each page on demand.
+
+    The detection pipeline only needs page *bitmaps* for the OCR and AI tiers;
+    the text tier (which wins on every searchable/digital PDF) never touches
+    them. Eagerly rasterising the whole document up front therefore burns CPU
+    and holds hundreds of megabytes of bitmaps in RAM that are usually thrown
+    away unused — wasteful on battery and memory both.
+
+    This view behaves like ``list[Image.Image]`` for the access patterns the
+    detectors use (``len()``, ``for img in pages``, ``pages[i]``, ``pages[a:b]``,
+    ``enumerate(pages, start=1)``) but renders a page only when it is actually
+    requested. By default each rendered page is released as soon as the next one
+    is fetched during iteration, so a 100-page scan peaks at ~one page of
+    bitmap instead of all 100. Slices (used by the AI tier's batching) and
+    explicit indexing render just the pages asked for.
+
+    Thread-safe: rendering is guarded by a lock because detectors run inside
+    ``asyncio.to_thread`` worker threads.
+    """
+
+    def __init__(self, file_bytes: bytes, dpi: int, *, cache: bool = False) -> None:
+        self._doc = fitz.open(stream=file_bytes, filetype="pdf")
+        self._dpi = dpi
+        self._count = self._doc.page_count
+        self._lock = threading.Lock()
+        # When cache=False (default) we keep at most the most-recently rendered
+        # page, so iteration never accumulates bitmaps. cache=True keeps every
+        # page (used only where a caller really needs random repeat access).
+        self._cache = cache
+        self._store: dict[int, Image.Image] = {}
+
+    def __len__(self) -> int:
+        return self._count
+
+    def _render(self, index: int) -> Image.Image:
+        if index < 0:
+            index += self._count
+        if index < 0 or index >= self._count:
+            raise IndexError(index)
+        with self._lock:
+            cached = self._store.get(index)
+            if cached is not None:
+                return cached
+            img = render_page_image(self._doc, index, self._dpi)
+            if self._cache:
+                self._store[index] = img
+            else:
+                # Keep only this page so sequential iteration stays flat in RAM.
+                self._store = {index: img}
+            return img
+
+    def __getitem__(
+        self, key: Union[int, slice]
+    ) -> Union[Image.Image, List[Image.Image]]:
+        if isinstance(key, slice):
+            return [self._render(i) for i in range(*key.indices(self._count))]
+        return self._render(int(key))
+
+    def __iter__(self) -> Iterator[Image.Image]:
+        for i in range(self._count):
+            yield self._render(i)
+
+    def close(self) -> None:
+        with self._lock:
+            self._store.clear()
+            try:
+                self._doc.close()
+            except Exception:
+                pass
+
+    def __enter__(self) -> "LazyPageImages":
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.close()
 
 
 def render_page_region(
