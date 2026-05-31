@@ -75,6 +75,28 @@ and text underlines are preserved as real content.
 Turn Smart mode off to keep the original "type page ranges → straight to ZIP"
 behaviour.
 
+### Answer sheet (auto-generated)
+
+When a paper carries an **answer key** (`1-B 2-A 3-D …`), every download also
+includes an **answer sheet** that pairs each cropped question image with its
+correct option:
+
+- `answers.csv` — opens straight into Excel/Sheets (`file, question, answer`),
+  e.g. `Q001.png, 1, B`.
+- `answers.json` — the machine-readable form for importing into a quiz/Anki
+  pipeline.
+
+The sheet rides along in the **questions** and **combined** ZIPs (not the
+solutions-only one, since it's keyed to the question images). The key is read
+**for free** from a searchable PDF's text layer; on a **scanned** paper whose
+text layer is empty, the AI vision tier (Opus) reads the key from the page
+images instead — but only when **Online mode** is on and an AI key is
+configured. A paper without any answer key simply ships no sheet.
+
+Toggle it per run with the **Answer sheet** switch in the **Output options**
+panel (on by default). To turn it off globally, set
+`ANSWER_SHEET_ENABLED=false`.
+
 ### Online / Offline mode (AI vision)
 
 The UI has an **Online mode (AI)** toggle (top of the "What to crop" panel):
@@ -99,7 +121,7 @@ OPENROUTER_MODEL=nvidia/nemotron-nano-12b-v2-vl:free   # a free model, or a paid
 # …or Anthropic
 AI_PROVIDER=anthropic
 ANTHROPIC_API_KEY=sk-ant-...
-CLAUDE_MODEL=claude-opus-4-5
+CLAUDE_MODEL=claude-opus-4-8
 ```
 
 `AI_PROVIDER=auto` (default) prefers OpenRouter when its key is set, else
@@ -133,6 +155,7 @@ Once the server is running (see *How to run* below), open **http://localhost:800
 | **Question numbering** | `auto` works for most papers. Switch to `q` if questions are labelled `Q1/Q2…`, or `numbered` for bare `1. 2. 3.` style. |
 | **Online mode (AI)** | Toggle ON to allow the AI vision fallback for tricky layouts. Requires an API key in `.env`. Toggle OFF for a fully offline run. |
 | **Smart mode** | ON (default) — runs the full pipeline and opens the review canvas. OFF — skips review and goes straight to ZIP. |
+| **Answer sheet** | ON (default) — bundles `answers.csv` + `answers.json` (each question image → correct option) when the PDF has an answer key. OFF — skips it. Lives in the **Output options** panel. |
 
 ### 3. Analyze
 - Click **Analyze**. The app runs text → OCR → AI detection and shows a **review canvas** with every detected question box overlaid on the page previews.

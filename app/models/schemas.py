@@ -57,6 +57,11 @@ class CropResponse(BaseModel):
     solutions_download_url: Optional[str] = None
     questions_count: int = 0
     solutions_count: int = 0
+    # True when an answer sheet (answers.csv + answers.json mapping each
+    # question image to its correct option) was bundled into the download.
+    answer_sheet_included: bool = False
+    # Number of questions the answer sheet carries a correct option for.
+    answers_count: int = 0
 
 
 # --- Smart analyze / manual-review / finalize flow ---------------------------
@@ -108,6 +113,10 @@ class AnalyzeResponse(BaseModel):
     items: list[AnalyzedItem]
     notes: list[ReviewNote]
     needs_review: bool
+    # Number of answers parsed from the paper's answer key (0 when no key was
+    # found). Lets the review UI tell the user up front whether the finalized
+    # download will include an answer sheet.
+    answer_key_count: int = 0
 
 
 class SnapRequest(BaseModel):
@@ -157,6 +166,9 @@ class FinalizeRequest(BaseModel):
     start_number: int = 1
     image_format: Literal["png", "jpg", "jpeg"] = "png"
     jpg_quality: int = 90
+    # When False, skip the answer-sheet (answers.csv/json) even if a key was
+    # found at analyze time. Defaults True so the sheet ships by default.
+    answer_sheet: bool = True
 
 
 class HealthResponse(BaseModel):

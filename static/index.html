@@ -1970,6 +1970,15 @@
                     Files named like <code id="exQ">Q001.png</code> / <code id="exS">S001.png</code> from your start number.
                   </span>
                 </div>
+
+                <label class="switch-card on col-span-2" id="answerSheetCard" for="answerSheet" style="margin-top:4px;">
+                  <span class="sw-text">
+                    <span class="sw-title">Answer sheet</span>
+                    <span class="sw-sub">Add answers.csv + answers.json (image → correct option) from the paper's answer key</span>
+                  </span>
+                  <span class="switch" aria-hidden="true"></span>
+                  <input id="answerSheet" type="checkbox" checked role="switch" />
+                </label>
               </div>
             </div>
           </div>
@@ -2619,6 +2628,8 @@
       const onlineCard = document.getElementById('onlineCard');
       const onlineSub = document.getElementById('onlineSub');
       const markerStyleEl = document.getElementById('markerStyle');
+      const answerSheetEl = document.getElementById('answerSheet');
+      const answerSheetCard = document.getElementById('answerSheetCard');
 
       // Manual Crop tool elements
       const manualFileInput = document.getElementById('manualFileInput');
@@ -2762,6 +2773,23 @@
       }
       smartModeEl.addEventListener('change', syncSmart);
       syncSmart();
+
+      // ---- Answer-sheet toggle wiring ----
+      // Purely visual on/off styling + remembers the choice. The flag is read at
+      // crop/finalize time and sent to the API.
+      function syncAnswerSheet() {
+        const on = answerSheetEl.checked;
+        answerSheetCard.classList.toggle('on', on);
+        try { localStorage.setItem('mcq-answer-sheet', on ? '1' : '0'); } catch (_) {}
+      }
+      if (answerSheetEl) {
+        try {
+          const saved = localStorage.getItem('mcq-answer-sheet');
+          if (saved !== null) answerSheetEl.checked = saved === '1';
+        } catch (_) {}
+        answerSheetEl.addEventListener('change', syncAnswerSheet);
+        syncAnswerSheet();
+      }
 
       // ---- Online-mode (AI) wiring ----
       // Reflects the toggle state visually and remembers the user's choice. The
@@ -3146,6 +3174,7 @@
           params.append('start_number', String(opt.startNumber));
           params.append('image_format', opt.imageFormat);
           if (opt.imageFormat === 'jpg') params.append('jpg_quality', String(opt.jpgQuality));
+          params.append('answer_sheet', String(answerSheetEl ? answerSheetEl.checked : true));
 
           const res = await fetch(`/api/crop?${params.toString()}`, { method: 'POST', body: fd });
           const data = await res.json().catch(() => ({}));
@@ -3154,7 +3183,7 @@
           const methodUsed = data.method_used || 'text';
           const totalQuestions = data.total_questions || 0;
           setStatus(
-            `Done. ${badgeHtml(methodUsed)} Cropped <strong>${totalQuestions}</strong> ${opt.imageFormat.toUpperCase()} item${totalQuestions === 1 ? '' : 's'}.`,
+            `Done. ${badgeHtml(methodUsed)} Cropped <strong>${totalQuestions}</strong> ${opt.imageFormat.toUpperCase()} item${totalQuestions === 1 ? '' : 's'}.${answerSheetNote(data)}`,
             'ok'
           );
           showDownload(data);
@@ -3178,6 +3207,7 @@
           const params = new URLSearchParams({ dpi: String(dpi) });
           params.append('marker_style', markerStyleEl.value || 'auto');
           params.append('use_ai', String(onlineModeEl.checked));
+          params.append('answer_sheet', String(answerSheetEl ? answerSheetEl.checked : true));
           params.append('has_questions', String(hasQuestions));
           if (hasQuestions && questionPages) params.append('question_pages', questionPages);
           params.append('has_answers', String(hasAnswers));
@@ -3189,8 +3219,14 @@
 
           openReview(data);
           const n = (data.items || []).length;
+          const akc = data.answer_key_count || 0;
+          const keyNote = (answerSheetEl && answerSheetEl.checked)
+            ? (akc
+                ? ` Found an answer key (<strong>${akc}</strong> answers) — it'll be in your download.`
+                : ` No answer key found in this PDF, so no answer sheet will be added.`)
+            : '';
           setStatus(
-            `Detected ${badgeHtml(data.method_used || 'text')} <strong>${n}</strong> item${n === 1 ? '' : 's'}. Review &amp; fix in the popup.`,
+            `Detected ${badgeHtml(data.method_used || 'text')} <strong>${n}</strong> item${n === 1 ? '' : 's'}. Review &amp; fix in the popup.${keyNote}`,
             'ok'
           );
         } catch (e) {
@@ -3199,6 +3235,17 @@
         } finally {
           setBusy(false);
         }
+      }
+
+      function answerSheetNote(data) {
+        // Mention the bundled answer sheet (answers.csv/json) when present, so
+        // users know the correct options shipped alongside the crops.
+        if (!data || !data.answer_sheet_included) return '';
+        const n = data.answers_count || 0;
+        if (!n) {
+          return ` Added an <strong>answer sheet</strong>, but <strong>no answer key</strong> was found in this PDF — see answers_README.txt in the ZIP.`;
+        }
+        return ` Included an <strong>answer sheet</strong> (${n} answer${n === 1 ? '' : 's'}).`;
       }
 
       function showDownload(data) {
@@ -4215,6 +4262,7 @@
             start_number: opt.startNumber,
             image_format: opt.imageFormat,
             jpg_quality: opt.jpgQuality,
+            answer_sheet: answerSheetEl ? answerSheetEl.checked : true,
           };
           const res = await fetch('/api/finalize', {
             method: 'POST',
@@ -4227,7 +4275,7 @@
           const total = data.total_questions || 0;
           closeReview();
           showStatus(
-            `Done. Combined <strong>${total}</strong> ${opt.imageFormat.toUpperCase()} item${total === 1 ? '' : 's'} into a ZIP.`,
+            `Done. Combined <strong>${total}</strong> ${opt.imageFormat.toUpperCase()} item${total === 1 ? '' : 's'} into a ZIP.${answerSheetNote(data)}`,
             'ok'
           );
           showResult(data);

@@ -25,6 +25,7 @@ import fitz
 
 from app.services.detector.base import (
     QuestionStart,
+    ContentLine,
     detect_columns,
     _validate_columns_with_markers,
 )
@@ -124,3 +125,105 @@ def test_validate_keeps_columns_on_marker_free_continuation_page() -> None:
     ]
     out = _validate_columns_with_markers(cols, starts, 2, float(W))
     assert out == cols
+
+
+def _build_two_column_solutions_pdf() -> bytes:
+    """A genuine two-column solutions page whose markers all sit in the left
+    column while the right column carries independent explanation prose.
+
+    Mirrors the "Hints & Solutions" pages of a UPSC DPP: ``Q1 Text Solution``,
+    ``Q2 Text Solution`` open in the left column, and the right column is the
+    continuation of their explanations (no markers, real sentences — not option
+    labels). This must stay two columns, unlike an option grid.
+    """
+
+    doc = fitz.open()
+    page = doc.new_page(width=W, height=H)
+    left_x, right_x = 50, 320
+
+    y = 80
+    page.insert_text((left_x, y), "Q1 Text Solution:", fontsize=10); y += 16
+    page.insert_text((left_x, y), "Ans: C", fontsize=10); y += 16
+    for i in range(6):
+        page.insert_text((left_x, y), f"left explanation sentence {i}", fontsize=10)
+        y += 16
+    y += 10
+    page.insert_text((left_x, y), "Q2 Text Solution:", fontsize=10); y += 16
+    page.insert_text((left_x, y), "Ans: C", fontsize=10); y += 16
+    for i in range(6):
+        page.insert_text((left_x, y), f"left q2 sentence {i}", fontsize=10)
+        y += 16
+
+    # Right column: independent prose, no markers and no option labels.
+    y = 80
+    for i in range(20):
+        page.insert_text((right_x, y), f"right column explanation prose {i}", fontsize=10)
+        y += 16
+
+    data = doc.tobytes()
+    doc.close()
+    return data
+
+
+def test_two_column_solutions_page_kept_split() -> None:
+    """A real two-column page whose markers cluster in the left column must NOT
+    collapse to full width — otherwise each crop stitches unrelated right-column
+    text under the left column (the reported autocrop bug)."""
+
+    pdf = _build_two_column_solutions_pdf()
+    questions = TextDetector().detect(pdf, padding_px=0)
+    assert questions, "expected detected solutions"
+
+    # The first solution must be confined to the left column: its content ends
+    # well before the page middle, not spanning into the right column.
+    first = min(questions, key=lambda q: int(q.q_num))
+    left_seg = min(first.segments, key=lambda s: s.x_start_pct)
+    assert left_seg.x_end_pct < 45.0, (first.q_num, left_seg.x_end_pct)
+
+
+def test_validate_keeps_split_when_other_column_has_prose() -> None:
+    """Markers all in one column, but the other column carries independent prose
+    → real two-column page, keep the split."""
+
+    cols = [(0.0, W / 2), (W / 2, float(W))]
+    starts = [
+        QuestionStart(page_num=1, y_top=70.0, q_num="1", x_left=45.0, x_right=120.0),
+        QuestionStart(page_num=1, y_top=200.0, q_num="2", x_left=45.0, x_right=120.0),
+    ]
+    lines = [
+        ContentLine(
+            page_num=1,
+            y_top=70.0 + 14 * i,
+            y_bottom=82.0 + 14 * i,
+            x_left=W / 2 + 20,
+            x_right=W / 2 + 200,
+            text=f"independent prose line {i}",
+        )
+        for i in range(6)
+    ]
+    out = _validate_columns_with_markers(cols, starts, 1, float(W), lines)
+    assert out == cols
+
+
+def test_validate_collapses_when_other_column_is_only_options() -> None:
+    """Markers all in one column and the other column holds only option labels
+    → option grid, collapse to full width."""
+
+    cols = [(0.0, W / 2), (W / 2, float(W))]
+    starts = [
+        QuestionStart(page_num=1, y_top=70.0, q_num="1", x_left=45.0, x_right=120.0),
+        QuestionStart(page_num=1, y_top=200.0, q_num="2", x_left=45.0, x_right=120.0),
+    ]
+    lines = [
+        ContentLine(
+            page_num=1,
+            y_top=70.0 + 14 * i,
+            y_bottom=82.0 + 14 * i,
+            x_left=W / 2 + 20,
+            x_right=W / 2 + 200,
+            text=label,
+        )
+        for i, label in enumerate(["(B) opt", "(D) opt", "(B) opt", "(D) opt"])
+    ]
+    out = _validate_columns_with_markers(cols, starts, 1, float(W), lines)
+    assert out == [(0.0, float(W))]

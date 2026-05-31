@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import re
 from pathlib import Path
@@ -26,9 +27,12 @@ from ..models.schemas import (
 )
 from ..models.schemas import DetectedQuestion
 from ..services.crop_service import crop_and_stitch_hires, save_question_image
+from ..services.answer_sheet import count_answered, write_answer_sheet
+from ..services.detector.ai_answer_key import read_answer_key_with_ai
 from ..services.detector.answer_key import (
     expected_question_numbers,
     extract_answer_key_from_text,
+    extract_answers_from_solution_section,
 )
 from ..services.detector.furniture import collect_document_furniture
 from ..services.detector.ocr_detector import OCRDetector
@@ -161,6 +165,105 @@ def _get_temp_root(request: Request, settings: Settings) -> str:
     return str(getattr(request.app.state, "temp_root", settings.TEMP_DIR))
 
 
+def _answer_key_from_pdf_text(file_bytes: bytes, in_scope_pages: "set[int] | None") -> dict[int, str]:
+    """Parse the paper's answer key from the PDF text layer (free, no AI).
+
+    Tries two formats, in order:
+      1. A compact ``number → A-D`` grid ("1-B 2-A 3-D …").
+      2. Answers stated inside each solution write-up ("1. … Ans (B)  2. …
+         Answer: C"), for papers that have no grid but a Solutions section.
+
+    ``in_scope_pages`` of None scans the **whole document** — the answer key (or
+    solutions) usually lives at the end, outside the question-page range, so
+    restricting the scan to question pages would miss it.
+
+    Returns ``{}`` for scanned papers (empty text layer) so the caller can fall
+    back to the AI vision reader.
+    """
+
+    try:
+        with fitz.open(stream=file_bytes, filetype="pdf") as doc:
+            parts: list[str] = []
+            for idx in range(doc.page_count):
+                page_no = idx + 1
+                if in_scope_pages and page_no not in in_scope_pages:
+                    continue
+                parts.append(doc.load_page(idx).get_text("text") or "")
+        full_text = "\n".join(parts)
+
+        # 1. Compact grid (most reliable when present).
+        key = extract_answer_key_from_text(full_text)
+        if key:
+            return key
+
+        # 2. Answers embedded in solution write-ups.
+        return extract_answers_from_solution_section(full_text)
+    except Exception:
+        return {}
+
+
+def _pdf_has_text(file_bytes: bytes) -> bool:
+    """True if the PDF has a meaningful selectable-text layer (not a pure scan)."""
+
+    try:
+        with fitz.open(stream=file_bytes, filetype="pdf") as doc:
+            total = 0
+            for idx in range(min(5, doc.page_count)):
+                total += len((doc.load_page(idx).get_text("text") or "").strip())
+                if total > 100:
+                    return True
+        return total > 100
+    except Exception:
+        return False
+
+
+async def _resolve_answer_key(
+    *,
+    settings: Settings,
+    file_bytes: bytes,
+    page_images: Any,
+    in_scope_pages: "set[int] | None",
+    use_ai: bool,
+    anthropic_client: Optional[anthropic.AsyncAnthropic],
+) -> dict[int, str]:
+    """Best-effort answer key for the answer sheet: text first, then AI vision.
+
+    The text layer is read for free. Only when it yields nothing (a scanned
+    paper) and the user has Online mode on do we spend an AI call to read the key
+    from the page images. Any failure degrades to ``{}`` so the crop/download
+    flow is never blocked.
+    """
+
+    if not settings.ANSWER_SHEET_ENABLED:
+        logger.info("answer_key skipped reason=ANSWER_SHEET_ENABLED=false")
+        return {}
+
+    key = await asyncio.to_thread(_answer_key_from_pdf_text, file_bytes, in_scope_pages)
+    if key:
+        logger.info("answer_key source=text pairs=%s", len(key))
+        return key
+
+    # Distinguish "searchable PDF but no key grid found" from "scanned PDF (no
+    # text at all)" so the logs say *why* nothing came back.
+    has_text = await asyncio.to_thread(_pdf_has_text, file_bytes)
+    if use_ai and settings.ai_is_configured():
+        logger.info("answer_key source=ai_vision attempt has_text_layer=%s", has_text)
+        key = await read_answer_key_with_ai(
+            settings, page_images, anthropic_client=anthropic_client
+        )
+        logger.info("answer_key source=ai_vision pairs=%s", len(key))
+        return key
+
+    logger.info(
+        "answer_key empty has_text_layer=%s use_ai=%s ai_configured=%s "
+        "(scanned PDF needs Online mode + an AI key)",
+        has_text,
+        use_ai,
+        settings.ai_is_configured(),
+    )
+    return {}
+
+
 @router.get("/health", response_model=HealthResponse)
 async def health(settings: Settings = Depends(get_settings)) -> HealthResponse:
     """Basic health check."""
@@ -180,6 +283,84 @@ async def health(settings: Settings = Depends(get_settings)) -> HealthResponse:
         version="2.0.0",
         ai_provider=provider,
         ai_model=ai_model,
+    )
+
+
+@router.post("/debug/answer-key")
+async def debug_answer_key(
+    file: UploadFile = File(...),
+    use_ai: bool = Query(False, description="Also try the AI vision reader."),
+    settings: Settings = Depends(get_settings),
+    client: Optional[anthropic.AsyncAnthropic] = Depends(get_anthropic_client_optional),
+) -> dict:
+    """Diagnose answer-sheet extraction for a specific PDF.
+
+    Upload a PDF and see exactly what the answer-key reader finds: whether the
+    PDF has a text layer, what the text parser extracted, and (optionally) what
+    the AI vision reader returns. Use this to pin down why an answer sheet is or
+    isn't produced for a given paper — it never crops or writes anything.
+    """
+
+    if file.content_type != "application/pdf":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=ERR_INVALID_FILE_TYPE)
+
+    file_bytes = await file.read()
+    if not file_bytes.startswith(b"%PDF"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=ERR_INVALID_PDF)
+
+    has_text = await asyncio.to_thread(_pdf_has_text, file_bytes)
+    text_key = await asyncio.to_thread(_answer_key_from_pdf_text, file_bytes, None)
+
+    # A short text sample so you can eyeball how the key is laid out in the PDF.
+    def _sample() -> str:
+        try:
+            with fitz.open(stream=file_bytes, filetype="pdf") as doc:
+                last = doc.load_page(doc.page_count - 1).get_text("text") or ""
+            return last[-800:]
+        except Exception:
+            return ""
+
+    sample = await asyncio.to_thread(_sample)
+
+    ai_key: dict[int, str] = {}
+    ai_attempted = False
+    if use_ai and settings.ai_is_configured() and not text_key:
+        ai_attempted = True
+        page_images = await asyncio.to_thread(LazyPageImages, file_bytes, settings.PDF_RENDER_DPI)
+        try:
+            ai_key = await read_answer_key_with_ai(settings, page_images, anthropic_client=client)
+        finally:
+            await asyncio.to_thread(page_images.close)
+
+    return {
+        "answer_sheet_enabled": settings.ANSWER_SHEET_ENABLED,
+        "pdf_has_text_layer": has_text,
+        "ai_configured": settings.ai_is_configured(),
+        "ai_provider": settings.resolved_ai_provider(),
+        "text_parser": {"count": len(text_key), "answers": text_key},
+        "ai_reader": {"attempted": ai_attempted, "count": len(ai_key), "answers": ai_key},
+        "last_page_text_sample": sample,
+        "verdict": _answer_key_verdict(has_text, text_key, settings, use_ai),
+    }
+
+
+def _answer_key_verdict(
+    has_text: bool, text_key: dict, settings: Settings, use_ai: bool
+) -> str:
+    if not settings.ANSWER_SHEET_ENABLED:
+        return "Answer sheet is disabled (ANSWER_SHEET_ENABLED=false)."
+    if text_key:
+        return f"OK — text parser found {len(text_key)} answers. Sheet will be produced."
+    if not has_text:
+        if use_ai and settings.ai_is_configured():
+            return "Scanned PDF — relying on AI vision (see ai_reader above)."
+        return (
+            "Scanned PDF (no text layer) and AI is off/unconfigured. "
+            "Turn on Online mode and configure an AI key to read the key."
+        )
+    return (
+        "PDF has text but no answer-key grid was recognised. The key may be "
+        "formatted unusually — check last_page_text_sample and share it."
     )
 
 
@@ -239,6 +420,11 @@ async def crop_pdf(
         False,
         description="Online mode: allow the AI vision tier when a key is configured. "
         "Defaults to off (fully offline text/OCR run); set true to opt into AI.",
+    ),
+    answer_sheet: bool = Query(
+        True,
+        description="Bundle an answer sheet (answers.csv + answers.json mapping each "
+        "question image to its correct option) when the paper has an answer key.",
     ),
     settings: Settings = Depends(get_settings),
     client: Optional[anthropic.AsyncAnthropic] = Depends(get_anthropic_client_optional),
@@ -340,6 +526,21 @@ async def crop_pdf(
             marker_style=style,
         )
 
+        # Resolve the paper's answer key for the answer-sheet export while the
+        # page images are still live (the AI vision fallback needs them). Text
+        # layer is read for free; AI is used only on a scanned paper in Online
+        # mode. Scanned across the WHOLE document — the key usually sits in the
+        # answer/solution section, outside the question-page range. Skipped
+        # entirely when the user turned the sheet off.
+        answer_key = await _resolve_answer_key(
+            settings=settings,
+            file_bytes=file_bytes,
+            page_images=page_images,
+            in_scope_pages=None,
+            use_ai=use_ai,
+            anthropic_client=client,
+        ) if answer_sheet else {}
+
         # Detection is done with the page bitmaps; the crops below are rendered
         # straight from the PDF vector source, so free the lazy view (and its
         # open document) now instead of holding it for the rest of the request.
@@ -419,7 +620,32 @@ async def crop_pdf(
             return question_paths, solution_paths, stitched
 
         question_paths, solution_paths, stitched_questions = await asyncio.to_thread(_crop_and_save_all)
-        zips = await asyncio.to_thread(create_zip_set, question_paths, solution_paths, job_id, job_dir)
+
+        # Build the answer sheet (answers.csv + answers.json) keyed to the crop
+        # filenames, and bundle it into the questions + combined archives. With
+        # the toggle on we always write the sheet (even with no key found) so the
+        # result is visible — an accompanying note explains a blank answer column.
+        sheet_paths = await asyncio.to_thread(
+            write_answer_sheet,
+            detected,
+            answer_key,
+            job_dir,
+            question_prefix=q_prefix,
+            solution_prefix=s_prefix,
+            start_number=start_number,
+            image_format=out_format,
+            always=answer_sheet,
+            empty_reason=(
+                "Scanned PDF with Online mode off — enable Online mode (AI)."
+                if (not answer_key and not use_ai)
+                else ""
+            ),
+        )
+        answers_count = count_answered(detected, answer_key, start_number=start_number)
+
+        zips = await asyncio.to_thread(
+            create_zip_set, question_paths, solution_paths, job_id, job_dir, sheet_paths
+        )
         zip_path = zips["combined"]
 
         def _file_kb(p: Path) -> int:
@@ -451,6 +677,8 @@ async def crop_pdf(
             ),
             questions_count=len(question_paths),
             solutions_count=len(solution_paths),
+            answer_sheet_included=bool(sheet_paths),
+            answers_count=answers_count,
         )
     except HTTPException as exc:
         logger.error("request_id=%s job_id=%s stage=error detail=%s", request_id, job_id, exc.detail)
@@ -496,6 +724,11 @@ async def analyze_pdf(
         False,
         description="Online mode: allow the AI vision tier when a key is configured. "
         "Defaults to off (fully offline text/OCR run); set true to opt into AI.",
+    ),
+    answer_sheet: bool = Query(
+        True,
+        description="Read the paper's answer key during analysis and cache it so "
+        "the finalized download can bundle an answer sheet.",
     ),
     settings: Settings = Depends(get_settings),
     client: Optional[anthropic.AsyncAnthropic] = Depends(get_anthropic_client_optional),
@@ -563,6 +796,33 @@ async def analyze_pdf(
             else "auto",
         )
 
+        # Resolve the paper's answer key for the answer-sheet export while the
+        # page images are still live (the AI vision fallback needs them). Scope
+        # to question pages; falls back to AI vision on a scanned paper in Online
+        # mode. Cached to disk so /finalize can attach the sheet without a
+        # re-upload or a second AI call.
+        # Resolve the paper's answer key for the answer-sheet export while the
+        # page images are still live (the AI vision fallback needs them).
+        # Scanned across the WHOLE document — the key usually sits in the
+        # answer/solution section, outside the question-page range. Falls back
+        # to AI vision on a scanned paper in Online mode. Cached to disk so
+        # /finalize can attach the sheet without a re-upload or a second AI call.
+        in_scope_pages = question_page_set | answer_page_set
+        answer_key = await _resolve_answer_key(
+            settings=settings,
+            file_bytes=file_bytes,
+            page_images=page_images,
+            in_scope_pages=None,
+            use_ai=use_ai,
+            anthropic_client=client,
+        ) if answer_sheet else {}
+        if answer_key:
+            await asyncio.to_thread(
+                (job_dir / "answer_key.json").write_text,
+                json.dumps(answer_key),
+                "utf-8",
+            )
+
         # Page bitmaps are no longer needed: previews and text-line extents
         # below are read straight from the PDF. Release the lazy view and its
         # open document now.
@@ -575,7 +835,6 @@ async def analyze_pdf(
         # 4" means nothing on pages 1-3 is checked or shown. ``strict=True``
         # mirrors the /crop contract instead of the old lax behaviour that kept
         # out-of-range items when only one range was supplied.
-        in_scope_pages = question_page_set | answer_page_set
         if in_scope_pages:
             detected = apply_page_ranges(
                 questions=detected,
@@ -623,24 +882,10 @@ async def analyze_pdf(
 
         pages_info = await asyncio.to_thread(_write_previews)
 
-        # Answer-key cross-check: parse the paper's own answer key (if present)
-        # to learn the authoritative set of question numbers, so the review can
-        # flag any the detector missed with high confidence.
-        def _expected_from_answer_key() -> "set[int]":
-            try:
-                with fitz.open(stream=file_bytes, filetype="pdf") as doc:
-                    parts: list[str] = []
-                    for idx in range(doc.page_count):
-                        page_no = idx + 1
-                        if in_scope_pages and page_no not in in_scope_pages:
-                            continue
-                        parts.append(doc.load_page(idx).get_text("text") or "")
-                key = extract_answer_key_from_text("\n".join(parts))
-                return expected_question_numbers(key)
-            except Exception:
-                return set()
-
-        expected_q_nums = await asyncio.to_thread(_expected_from_answer_key)
+        # Answer-key cross-check: the answer key parsed above gives the
+        # authoritative set of question numbers, so the review can flag any the
+        # detector missed with high confidence.
+        expected_q_nums = expected_question_numbers(answer_key)
 
         # Per-page text-line extents (page-percent units) for the content-
         # coverage review check: a normal-looking crop that stopped short leaves
@@ -726,6 +971,7 @@ async def analyze_pdf(
             items=items,
             notes=notes,
             needs_review=needs_review,
+            answer_key_count=len(answer_key),
         )
     except HTTPException:
         if job_dir is not None:
@@ -987,7 +1233,38 @@ async def finalize_crop(
 
     try:
         question_paths, solution_paths, stitched_questions = await asyncio.to_thread(_crop_and_save_all)
-        await asyncio.to_thread(create_zip_set, question_paths, solution_paths, job_id, job_dir)
+
+        # Attach the answer sheet using the key cached by /analyze (no re-parse,
+        # no extra AI call). Missing/empty key simply writes no sheet.
+        def _load_cached_key() -> dict[int, str]:
+            key_path = job_dir / "answer_key.json"
+            if not key_path.exists():
+                return {}
+            try:
+                raw = json.loads(key_path.read_text(encoding="utf-8"))
+                return {int(k): str(v) for k, v in (raw or {}).items()}
+            except Exception:
+                return {}
+
+        answer_key = await asyncio.to_thread(_load_cached_key)
+        if not payload.answer_sheet:
+            answer_key = {}
+        sheet_paths = await asyncio.to_thread(
+            write_answer_sheet,
+            detected,
+            answer_key,
+            job_dir,
+            question_prefix=q_prefix,
+            solution_prefix=s_prefix,
+            start_number=start_number,
+            image_format=out_format,
+            always=payload.answer_sheet,
+        )
+        answers_count = count_answered(detected, answer_key, start_number=start_number)
+
+        await asyncio.to_thread(
+            create_zip_set, question_paths, solution_paths, job_id, job_dir, sheet_paths
+        )
     except Exception as exc:
         logger.exception("request_id=%s job_id=%s stage=finalize_error error=%s", request_id, job_id, str(exc))
         raise
@@ -1015,6 +1292,8 @@ async def finalize_crop(
         ),
         questions_count=len(question_paths),
         solutions_count=len(solution_paths),
+        answer_sheet_included=bool(sheet_paths),
+        answers_count=answers_count,
     )
 
 

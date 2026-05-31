@@ -37,6 +37,7 @@ def create_zip_set(
     solution_paths: list[Path],
     job_id: str,
     output_dir: Path,
+    extra_paths: list[Path] | None = None,
 ) -> dict[str, Path]:
     """Create up to three ZIPs for a job and return the ones produced.
 
@@ -45,14 +46,21 @@ def create_zip_set(
     actually has crops, so a questions-only paper doesn't ship an empty
     solutions ZIP. The returned mapping uses the keys ``"questions"``,
     ``"solutions"`` and ``"combined"``.
+
+    ``extra_paths`` are non-image sidecar files (e.g. the answer-sheet
+    ``answers.csv`` / ``answers.json``) bundled into the **questions** and
+    **combined** archives — never the solutions-only one, since the answer sheet
+    is keyed to the question images. They're omitted when the questions side is
+    empty so a solutions-only run doesn't ship a dangling sheet.
     """
 
     output_dir.mkdir(parents=True, exist_ok=True)
     result: dict[str, Path] = {}
+    extras = list(extra_paths or [])
 
     if question_paths:
         q_zip = output_dir / QUESTIONS_ZIP.format(job_id=job_id)
-        _write_zip(q_zip, question_paths)
+        _write_zip(q_zip, question_paths + extras)
         result["questions"] = q_zip
 
     if solution_paths:
@@ -61,14 +69,16 @@ def create_zip_set(
         result["solutions"] = s_zip
 
     combined = output_dir / COMBINED_ZIP.format(job_id=job_id)
-    _write_zip(combined, question_paths + solution_paths)
+    combined_extras = extras if question_paths else []
+    _write_zip(combined, question_paths + solution_paths + combined_extras)
     result["combined"] = combined
 
     logger.info(
-        "created_zip_set job_id=%s questions=%s solutions=%s combined=%s",
+        "created_zip_set job_id=%s questions=%s solutions=%s combined=%s extras=%s",
         job_id,
         len(question_paths),
         len(solution_paths),
         len(question_paths) + len(solution_paths),
+        len(extras),
     )
     return result

@@ -22,7 +22,9 @@ class Settings(BaseSettings):
 
     # Anthropic
     ANTHROPIC_API_KEY: Optional[str] = None
-    CLAUDE_MODEL: str = "claude-opus-4-5"
+    # Anthropic's most capable vision model — best detection + answer-key reading
+    # on hard/scanned papers. Override in .env to trade accuracy for cost/speed.
+    CLAUDE_MODEL: str = "claude-opus-4-8"
 
     # OpenRouter (OpenAI-compatible)
     OPENROUTER_API_KEY: Optional[str] = None
@@ -65,6 +67,14 @@ class Settings(BaseSettings):
     AI_BATCH_SIZE: int = 4
     AI_BATCH_OVERLAP: int = 1
     AI_MAX_RETRIES: int = 3
+
+    # Answer-sheet export. When on, every download also contains an
+    # ``answers.csv`` + ``answers.json`` mapping each cropped question to the
+    # correct option (A-D) read from the paper's own answer key. The key is read
+    # for free from the PDF text first; on a scanned paper where the text layer
+    # is empty, the AI vision tier (Opus) reads it from the page images instead
+    # — only when Online mode is on and a key is configured.
+    ANSWER_SHEET_ENABLED: bool = True
 
     MAX_PDF_SIZE_MB: int = 50
     MAX_PAGES: int = 100

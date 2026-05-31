@@ -541,11 +541,76 @@ def detect_columns(
 # the orphaned right strip). Requiring markers in ≥2 columns collapses such a
 # page back to a single full-width column, while leaving true two-column papers
 # (markers on both sides) untouched.
+# A line is an MCQ option label when it *starts* with an option marker
+# ("(A)", "B)", "C."). Used to tell an option-grid's right column (only option
+# labels) from a real second text column (independent prose).
+_OPTION_START_RE: re.Pattern[str] = re.compile(r"^\s*\(?\s*[A-Da-d]\s*[\.\)]")
+
+# A non-marker column must carry at least this many content lines, of which at
+# least this fraction are non-option prose, before its split is trusted as a
+# real second text column rather than the option-grid false gutter.
+_MIN_SECOND_COLUMN_LINES = 4
+_SECOND_COLUMN_PROSE_FRACTION = 0.5
+
+
+def _line_starts_with_option(text: str) -> bool:
+    """True if a line begins with an MCQ option label ("(B)", "C.", "d)")."""
+
+    return bool(_OPTION_START_RE.match((text or "").strip()))
+
+
+def _other_columns_carry_independent_text(
+    columns: list[tuple[float, float]],
+    lines: "Optional[list[ContentLine]]",
+    page_num: int,
+    marker_col: int,
+) -> bool:
+    """True when columns other than the marker column hold their own body text.
+
+    This is the discriminator between the two layouts that both put every
+    question marker in a single column:
+
+      * **Option grid** (single logical column) — the non-marker column holds
+        only the spilled "(B)/(D)" option labels, each paired with a left
+        "(A)/(C)". It is *not* an independent column, so the page must collapse
+        to full width or the options get clipped.
+      * **True two-column page** — the non-marker column carries its own prose
+        (e.g. a solution's explanation continuing on the right), which must be
+        cropped separately, not stitched under the left column.
+
+    We treat the other column as independent only when it contains a meaningful
+    number of lines and a substantial share of them are *not* option labels.
+    With no line data we report False so the conservative option-grid collapse
+    is preserved.
+    """
+
+    if not lines:
+        return False
+
+    other = [
+        ln
+        for ln in lines
+        if ln.page_num == page_num
+        and ln.x_right > ln.x_left
+        and _column_index(columns, ln.x_left, ln.x_right) != marker_col
+    ]
+    if len(other) < _MIN_SECOND_COLUMN_LINES:
+        return False
+
+    non_option = sum(1 for ln in other if not _line_starts_with_option(ln.text))
+    needed = max(
+        _MIN_SECOND_COLUMN_LINES,
+        int(len(other) * _SECOND_COLUMN_PROSE_FRACTION),
+    )
+    return non_option >= needed
+
+
 def _validate_columns_with_markers(
     columns: list[tuple[float, float]],
     starts: list["QuestionStart"],
     page_num: int,
     page_width: float,
+    lines: "Optional[list[ContentLine]]" = None,
 ) -> list[tuple[float, float]]:
     """Keep a multi-column split only when markers don't betray an option grid.
 
@@ -559,6 +624,14 @@ def _validate_columns_with_markers(
     markers (a pure cross-page continuation, whose two real columns must be kept
     to stitch correctly) and pages that start a single question (ambiguous —
     left as detected) are returned unchanged.
+
+    Markers clustering in one column is *also* what a real two-column solutions
+    page looks like when its "Q1 Text Solution", "Q2 Text Solution" openings all
+    fall in the left column and the right column carries their explanation prose.
+    To avoid collapsing that genuine layout, when ``lines`` are supplied we keep
+    the split if the non-marker column holds its own independent text (see
+    :func:`_other_columns_carry_independent_text`); only the option-grid
+    signature (the other column is just spilled option labels) collapses.
     """
 
     if len(columns) <= 1:
@@ -566,19 +639,28 @@ def _validate_columns_with_markers(
 
     cols_with_marker: set[int] = set()
     marker_count = 0
+    marker_col = 0
     for s in starts:
         if s.page_num != page_num:
             continue
         marker_count += 1
-        cols_with_marker.add(_column_index(columns, s.x_left, s.x_right))
+        ci = _column_index(columns, s.x_left, s.x_right)
+        marker_col = ci
+        cols_with_marker.add(ci)
         if len(cols_with_marker) >= 2:
             # Questions start in two different columns → real multi-column page.
             return columns
 
-    # Several questions all starting in one column → option-grid false split.
-    # Collapse to a single full-width column so each crop spans the whole page
-    # and the right-hand options aren't clipped.
+    # Several questions all starting in one column → either an option-grid false
+    # split (collapse) or a real two-column page whose markers happen to cluster
+    # (keep). The non-marker column's content decides which.
     if marker_count >= 2 and len(cols_with_marker) == 1:
+        if _other_columns_carry_independent_text(
+            columns, lines, page_num, marker_col
+        ):
+            return columns
+        # Option-grid signature: collapse to one full-width column so each crop
+        # spans the whole page and the right-hand options aren't clipped.
         return [(0.0, page_width or 1.0)]
 
     return columns
@@ -1148,7 +1230,7 @@ def starts_to_questions(
         ]
         cols = detect_columns(intervals, float(page_width))
         page_columns[page_num] = _validate_columns_with_markers(
-            cols, starts, page_num, float(page_width)
+            cols, starts, page_num, float(page_width), lines
         )
 
     # Strip isolated banner/title lines above the first question on a page
