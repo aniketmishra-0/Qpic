@@ -239,3 +239,185 @@ class RenameFinalizeResponse(BaseModel):
     session_id: str
     count: int
     download_url: str
+
+
+# --- PDF power tools: Compress / Edit / Preflight ----------------------------
+
+
+class CompressResponse(BaseModel):
+    """Result of a PDF compression job."""
+
+    job_id: str
+    original_size: int
+    compressed_size: int
+    ratio: float  # fraction of original size removed (0.0-1.0)
+    level: str
+    target_met: Optional[bool] = None
+    note: str = ""
+    download_url: str
+
+
+class EditableSpanModel(BaseModel):
+    """One editable text run on a page, with its geometry and style."""
+
+    id: str
+    page: int
+    text: str
+    bbox: list[float]  # [x0, y0, x1, y1] in PDF points
+    font: str
+    size: float
+    color: int
+    bold: bool = False
+    italic: bool = False
+
+
+class EditPageModel(BaseModel):
+    """Geometry + preview for one page in the editor."""
+
+    page: int
+    width: float
+    height: float
+    preview_url: str
+
+
+class EditExtractResponse(BaseModel):
+    """All editable text spans for a PDF opened in the editor."""
+
+    job_id: str
+    has_text: bool
+    pages: list[EditPageModel]
+    spans: list[EditableSpanModel]
+
+
+class EditOpModel(BaseModel):
+    """A single span edit submitted from the editor."""
+
+    page: int
+    bbox: list[float]
+    new_text: str
+    font: Optional[str] = None
+    size: Optional[float] = None
+    color: Optional[int] = None
+
+
+class OperationModel(BaseModel):
+    """A single Acrobat-style edit operation submitted from the editor.
+
+    ``type`` is one of: ``edit_text``, ``add_text``, ``add_image``,
+    ``add_link``, ``erase``.
+    """
+
+    type: str
+    page: int
+    bbox: list[float]
+    text: str = ""
+    font: Optional[str] = None
+    size: Optional[float] = None
+    color: Optional[int] = None
+    bold: bool = False
+    italic: bool = False
+    align: int = 0
+    image_b64: Optional[str] = None
+    url: Optional[str] = None
+    fill: Optional[int] = None
+
+
+class EditApplyRequest(BaseModel):
+    """Payload that applies a set of in-place text edits to a job's PDF.
+
+    Either ``edits`` (legacy text-only) or ``operations`` (full Acrobat-style
+    set) may be supplied; ``operations`` wins when both are present.
+    """
+
+    job_id: str
+    edits: list[EditOpModel] = []
+    operations: list[OperationModel] = []
+
+
+class EditApplyResponse(BaseModel):
+    """The edited PDF is ready for download."""
+
+    job_id: str
+    edits_applied: int
+    download_url: str
+
+
+class OcrResponse(BaseModel):
+    """Result of adding a searchable OCR text layer to a PDF."""
+
+    job_id: str
+    pages_ocred: int
+    languages: str
+    note: str
+    download_url: str
+
+
+class PreflightCheckModel(BaseModel):
+    id: str
+    title: str
+    status: str  # ok | warn | fail | info
+    detail: str
+
+
+class PreflightFontModel(BaseModel):
+    name: str
+    type: str
+    embedded: bool
+    subset: bool
+
+
+class PreflightImageModel(BaseModel):
+    page: int
+    width: int
+    height: int
+    dpi: float
+    colorspace: str
+    bpc: int
+
+
+class PreflightPageDetail(BaseModel):
+    """Per-page geometry detail for the Preflight Check table."""
+
+    page: int
+    w_mm: float
+    h_mm: float
+    w_pt: float
+    h_pt: float
+    w_px: int
+    h_px: int
+    format: str  # "A4" | "A3" | "Letter" | "Legal" | "A5" | "Custom"
+    orientation: str  # "Portrait" | "Landscape"
+
+
+class PreflightResponse(BaseModel):
+    """Full read-only preflight report for a PDF."""
+
+    verdict: str  # pass | warn | fail
+    page_count: int
+    page_sizes: list[str]
+    file_size: int
+    is_encrypted: bool
+    has_text_layer: bool
+    checks: list[PreflightCheckModel]
+    fonts: list[PreflightFontModel]
+    images: list[PreflightImageModel]
+    metadata: dict[str, str]
+    # All distinct page-size labels + a flag so the UI can offer the one-click
+    # "Fix page sizes" action when the document mixes geometries.
+    distinct_page_sizes: list[str] = []
+    mixed_page_sizes: bool = False
+    # Per-page detailed geometry for the Preflight Check modal table.
+    page_details: list[PreflightPageDetail] = []
+
+
+class PreflightFixResponse(BaseModel):
+    """Result of normalizing a PDF's pages to one uniform size."""
+
+    job_id: str
+    target_label: str
+    target_width: float   # PDF points
+    target_height: float  # PDF points
+    pages_total: int
+    pages_changed: int
+    note: str
+    download_url: str

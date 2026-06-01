@@ -11,7 +11,7 @@ themes) and can run either in the browser or as a native desktop app.
 - **Smart detection** — text, OCR and an optional AI vision tier, with manual
   review + hand-fixing before download.
 - **Acrobat-style UI** — a clean web front-end served from `static/index.html`;
-  a top app bar, tool tabs (Crop / Rename Batch) and a review canvas.
+  a top app bar, tool tabs (Auto Crop / Manual Crop / Rename Batch / Tools) and a review canvas.
 - **Two desktop backends** — pywebview (small) or Qt/PySide6 (consistent
   Chromium rendering). See *Desktop app* below.
 - **Offline-capable** — bundles Tesseract for OCR; AI is only used when a key is
@@ -178,6 +178,27 @@ Once the server is running (see *How to run* below), open **http://localhost:800
 ### Rename Batch tab
 Switch to the **Rename Batch** tab to bulk-rename a folder of already-cropped images using a custom prefix and numbering scheme.
 
+### Tools tab (Compress / Edit / Preflight)
+
+The **Tools** tab bundles three standalone PDF utilities, all powered by PyMuPDF
+on the backend (no extra binaries beyond the optional Tesseract for OCR):
+
+- **Compress PDF** — shrink a PDF by recompressing its images, subsetting fonts
+  and cleaning the object streams. Pick a **level** (`light` / `balanced` /
+  `strong` / `extreme`) or set a **target size in MB** and the tool pushes
+  quality down until the file fits (best-effort, never below readable quality).
+  The result reports the before/after size and the percentage saved.
+- **Edit PDF** — edit text **in place**. Each text run is shown as a clickable
+  box over a page preview; changes are re-inserted using the document's **own
+  embedded font**, at the same size and colour, fitted to the original box (a
+  Base-14 / closest-match fallback is used when the original font can't be
+  reused). A **Run OCR** button turns a scanned/image PDF into a searchable one
+  (invisible Tesseract text layer) so its text becomes editable too.
+- **Preflight PDF** — a read-only prepress check: page count/sizes, embedded vs.
+  non-embedded fonts, image resolution (low-DPI = blurry in print), RGB vs CMYK
+  colour, encryption and a searchable-text check, rolled up into a single
+  PASS / WARN / FAIL verdict with actionable messages.
+
 ---
 
 ## How to run
@@ -221,6 +242,16 @@ docker run -p 8000:8000 --env-file .env qpic
 - `POST /api/finalize` — JSON body of reviewed items (auto + manual) → builds the ZIPs
 - `GET /api/crop/download/{job_id}` — download a ZIP. Optional `kind` query param: `combined` (default, questions + solutions → `QScombined.zip`), `questions` (questions only → `Q.zip`), or `solutions` (solutions only → `S.zip`). `question_prefix` / `solution_prefix` set the download filename.
 - `GET /api/health` — health check
+
+### Tools endpoints
+
+- `POST /api/tools/compress` — `multipart/form-data` field `file`, plus `level` (`light`/`balanced`/`strong`/`extreme`) **or** `target_mb`. Returns sizes + `download_url`.
+- `GET /api/tools/compress/download/{job_id}` — download the compressed PDF.
+- `POST /api/tools/preflight` — field `file`; returns the full preflight report (verdict, checks, fonts, images, metadata).
+- `POST /api/tools/edit/open` — field `file`; stages the PDF and returns editable text spans (with geometry/font/size/colour) + page previews.
+- `POST /api/tools/edit/apply` — JSON `{job_id, edits:[{page, bbox, new_text, font?, size?, color?}]}`; applies font-matched replacements. Returns `download_url`.
+- `POST /api/tools/edit/ocr` — field `file`, optional `languages` (e.g. `eng+hin`) and `dpi`; adds an invisible OCR text layer and makes the result the new editable source.
+- `GET /api/tools/edit/download/{job_id}` — download the edited (or OCR'd) PDF.
 
 ## Desktop app (no terminal, no server to start manually)
 

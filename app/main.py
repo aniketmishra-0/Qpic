@@ -21,6 +21,7 @@ from fastapi.staticfiles import StaticFiles
 from .config import Settings
 from .routers.crop import router as crop_router
 from .routers.rename import router as rename_router
+from .routers.tools import router as tools_router
 from .utils.file_utils import cleanup_old_jobs, has_pending_jobs
 
 LOG_FORMAT = "%(asctime)s [%(levelname)s] %(name)s | %(message)s"
@@ -172,5 +173,17 @@ async def index() -> FileResponse:
     )
 
 
+@app.get("/edit", include_in_schema=False)
+async def edit_page() -> FileResponse:
+    """Serve the full-screen Acrobat-style document editor."""
+
+    return FileResponse(
+        str(STATIC_DIR / "edit.html"),
+        media_type="text/html",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
+
+
 app.include_router(crop_router, prefix="/api")
 app.include_router(rename_router, prefix="/api")
+app.include_router(tools_router, prefix="/api")

@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#1A1A2E" id="themeColorMeta" />
+  <title>Qpic · PDF Editor</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+
+  <!-- Apply the saved theme before first paint (shares the key with the main app). -->
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('mcq-theme') || 'system';
+        if (t !== 'system' && t !== 'light' && t !== 'dark') t = 'system';
+        document.documentElement.setAttribute('data-theme', t);
+      } catch (e) {
+        document.documentElement.setAttribute('data-theme', 'system');
+      }
+    })();
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap"
+    rel="stylesheet"
+  />
+
+  <style>
+    /* ============================================================
+       Design tokens — Adobe Acrobat-inspired, theme-aware
+       Dark is the default. Light overrides live under
+       :root[data-theme="light"] and the 'system' media query.
+       ============================================================ */
+    :root {
+      --accent: #E8650A;          /* Acrobat orange */
+      --accent-hover: #ff7a1f;
+      --accent-soft: rgba(232,101,10,0.14);
+      --select: #0066FF;
+      --select-soft: rgba(0,102,255,0.12);
+      --ok: #1faa59;
+      --med: #d98c00;
+      --low: #d33a3a;
+
+      --ui-font: 'IBM Plex Sans', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      --mono-font: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+      --toolbar-h: 52px;
+      --status-h: 30px;
+      --left-w: 188px;
+      --right-w: 274px;
+
+      --theme-transition: background-color 200ms ease, border-color 200ms ease, color 200ms ease;
+    }
+
+    /* ---- Dark palette (default) ---- */
+    :root, :root[data-theme="dark"] {
+      color-scheme: dark;
+      --shell: #1A1A2E;
+      --shell-2: #16162a;
+      --shell-3: #21213b;
+      --shell-line: #2c2c4a;
+      --shell-text: #e7e7f2;
+      --shell-muted: #9b9bc0;
+      --canvas-bg: #2a2a33;       /* dark workbench behind the white pages */
+      --card-bg: #FFFFFF;
+      --start-bg: #20202c;
+      --dz-bg: #21213b;
+      --dz-border: #3a3a58;
+      --dz-title: #f0f0f8;
+      --dz-sub: #9b9bc0;
+      --dz-status: #b9b9d2;
+      --scrollthumb: #3a3a5c;
+      --meta-color: #14121f;
+    }
+
+    /* ---- Light palette ---- */
+    :root[data-theme="light"] {
+      color-scheme: light;
+      --shell: #ffffff;
+      --shell-2: #f4f4f7;
+      --shell-3: #ebebf1;
+      --shell-line: #e0e0e8;
+      --shell-text: #20202c;
+      --shell-muted: #6a6a7e;
+      --canvas-bg: #d9dade;
+      --card-bg: #FFFFFF;
+      --start-bg: #eaeae5;
+      --dz-bg: #ffffff;
+      --dz-border: #c7c7c0;
+      --dz-title: #20202c;
+      --dz-sub: #6a6a78;
+      --dz-status: #555;
+      --scrollthumb: #c3c3bd;
+      --meta-color: #ffffff;
+    }
+
+    /* ---- System: follow the OS when no explicit choice ---- */
+    @media (prefers-color-scheme: light) {
+      :root[data-theme="system"] {
+        color-scheme: light;
+        --shell: #ffffff;
+        --shell-2: #f4f4f7;
+        --shell-3: #ebebf1;
+        --shell-line: #e0e0e8;
+        --shell-text: #20202c;
+        --shell-muted: #6a6a7e;
+        --canvas-bg: #d9dade;
+        --card-bg: #FFFFFF;
+        --start-bg: #eaeae5;
+        --dz-bg: #ffffff;
+        --dz-border: #c7c7c0;
+        --dz-title: #20202c;
+        --dz-sub: #6a6a78;
+        --dz-status: #555;
+        --scrollthumb: #c3c3bd;
+        --meta-color: #ffffff;
+      }
+    }
+
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; height: 100%;
+      font-family: var(--ui-font);
+      color: var(--shell-text); background: var(--canvas-bg);
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden;
+      transition: var(--theme-transition);
+    }
+    button { font-family: inherit; cursor: pointer; }
+    input, select { font-family: inherit; }
+    ::-webkit-scrollbar { width: 11px; height: 11px; }
+    ::-webkit-scrollbar-thumb { background: var(--scrollthumb); border-radius: 6px; border: 3px solid transparent; background-clip: content-box; }
+    ::-webkit-scrollbar-thumb:hover { filter: brightness(0.92); background-clip: content-box; }
+    .shell-scroll::-webkit-scrollbar-thumb { background: var(--scrollthumb); background-clip: content-box; }
+
+    /* ============================================================
+       App shell
+       ============================================================ */
+    .app { display: grid; grid-template-rows: var(--toolbar-h) 1fr var(--status-h); height: 100vh; }
+    .body { display: grid; grid-template-columns: var(--left-w) 1fr var(--right-w); min-height: 0; }
+
+    /* ---------- Top toolbar ---------- */
+    .toolbar {
+      background: var(--shell); color: var(--shell-text);
+      display: flex; align-items: center; padding: 0 12px; gap: 12px;
+      border-bottom: 1px solid var(--shell-line); position: relative; z-index: 40;
+    }
+    .tb-left, .tb-right { display: flex; align-items: center; gap: 8px; flex: none; }
+    .tb-center { display: flex; align-items: center; gap: 4px; margin: 0 auto; }
+
+    .logo { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(160deg,#6a5cf0,#574bd4); display: grid; place-items: center; color: #fff; flex: none; }
+    .logo svg { width: 19px; height: 19px; }
+    .brand { font-weight: 700; font-size: 15px; letter-spacing: .2px; }
+    .mode-pill { font-size: 11px; font-weight: 600; color: var(--accent); background: var(--accent-soft); padding: 3px 9px; border-radius: 999px; border: 1px solid rgba(232,101,10,0.35); }
+
+    .tb-btn {
+      display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px; border-radius: 7px;
+      background: transparent; color: var(--shell-text); border: 1px solid transparent; font-size: 12.5px; font-weight: 500;
+      transition: transform .12s ease, background .15s ease, border-color .15s ease;
+    }
+    .tb-btn svg { width: 16px; height: 16px; }
+    .tb-btn:hover { background: var(--shell-3); }
+    .tb-btn:active { transform: scale(0.95); }
+    .tb-btn.active { background: var(--accent-soft); color: var(--accent); border-color: rgba(232,101,10,0.4); }
+    .tb-btn.icon { padding: 0 8px; min-width: 34px; justify-content: center; }
+    .tb-btn:disabled { opacity: .4; cursor: not-allowed; }
+    .tb-sep { width: 1px; height: 26px; background: var(--shell-line); margin: 0 3px; }
+
+    .tb-zoom { display: inline-flex; align-items: center; gap: 2px; background: var(--shell-2); border-radius: 8px; padding: 2px; border: 1px solid var(--shell-line); }
+    .tb-zoom .zlevel { font-size: 12px; min-width: 46px; text-align: center; color: var(--shell-muted); font-variant-numeric: tabular-nums; }
+    .zfit { height: 30px; padding: 0 9px; border-radius: 7px; background: transparent; border: none; color: var(--shell-muted); font-size: 12px; font-weight: 600; }
+    .zfit.active { background: var(--accent-soft); color: var(--accent); }
+
+    /* theme switcher (segmented) */
+    .theme-switch { display: inline-flex; align-items: center; gap: 2px; background: var(--shell-2); border: 1px solid var(--shell-line); border-radius: 8px; padding: 2px; }
+    .theme-switch button { width: 30px; height: 30px; border: none; background: transparent; color: var(--shell-muted); border-radius: 6px; display: grid; place-items: center; transition: background .14s, color .14s; }
+    .theme-switch button svg { width: 15px; height: 15px; }
+    .theme-switch button:hover { color: var(--shell-text); }
+    .theme-switch button[aria-pressed="true"] { background: var(--shell); color: var(--accent); box-shadow: 0 2px 8px -3px rgba(0,0,0,0.35); }
+
+    .btn-export {
+      background: var(--accent); color: #fff; border: none; height: 36px; padding: 0 16px; border-radius: 8px;
+      font-weight: 700; font-size: 13px; display: inline-flex; align-items: center; gap: 7px;
+      box-shadow: 0 2px 10px rgba(232,101,10,0.4); transition: transform .12s ease, background .15s ease;
+    }
+    .btn-export svg { width: 16px; height: 16px; }
+    .btn-export:hover { background: var(--accent-hover); }
+    .btn-export:active { transform: scale(0.96); }
+    .btn-export:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+
+    .btn-ghost {
+      background: var(--shell-3); color: var(--shell-text); border: 1px solid var(--shell-line);
+      height: 36px; padding: 0 12px; border-radius: 8px; font-weight: 600; font-size: 12.5px;
+      display: inline-flex; align-items: center; gap: 6px; transition: transform .12s ease, background .15s;
+    }
+    .btn-ghost svg { width: 15px; height: 15px; }
+    .btn-ghost:hover { background: var(--shell-line); }
+    .btn-ghost:active { transform: scale(0.96); }
+    .btn-ghost:disabled { opacity: .45; cursor: not-allowed; }
+
+    .spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(255,255,255,.35); border-top-color: #fff; animation: spin .7s linear infinite; display: inline-block; vertical-align: -2px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ---------- Left sidebar (thumbnails) ---------- */
+    .left { background: var(--shell); color: var(--shell-text); border-right: 1px solid var(--shell-line); display: flex; flex-direction: column; min-height: 0; }
+    .left-head { padding: 12px 14px 8px; flex: none; }
+    .left-title { font-size: 11px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; color: var(--shell-muted); }
+    .left-count { font-size: 11px; color: var(--shell-muted); margin-top: 2px; }
+    .thumbs { overflow-y: auto; padding: 6px 10px 16px; flex: 1; min-height: 0; }
+    .thumb { position: relative; padding: 6px; margin-bottom: 8px; border-radius: 10px; border: 1px solid transparent; background: var(--shell-2); cursor: pointer; transition: border-color .15s, background .15s; }
+    .thumb:hover { background: var(--shell-3); }
+    .thumb.active { border-color: var(--select); background: var(--shell-3); }
+    .thumb-prev { border-radius: 6px; overflow: hidden; background: #fff; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.08); }
+    .thumb-prev img { width: 100%; display: block; }
+    .thumb-num { font-size: 11px; font-weight: 600; color: var(--shell-muted); margin-top: 5px; text-align: center; }
+
+    /* ---------- Center canvas ---------- */
+    .center { position: relative; min-width: 0; background: var(--canvas-bg); }
+    .canvas-scroll { position: absolute; inset: 0; overflow: auto; scroll-behavior: smooth; padding: 30px 24px 120px; display: flex; flex-direction: column; align-items: center; gap: 26px; }
+
+    .ed-page { position: relative; flex: none; line-height: 0; background: #fff; box-shadow: 0 6px 28px rgba(0,0,0,0.18); }
+    .ed-page img { display: block; width: 100%; height: 100%; }
+    .ed-page .ed-pnum { position: absolute; top: -22px; left: 0; font-size: 11px; line-height: 1; color: #5b5b67; font-weight: 600; }
+
+    .edit-overlay { position: absolute; inset: 0; }
+    .canvas-scroll.tool-add_text .edit-overlay,
+    .canvas-scroll.tool-add_link .edit-overlay,
+    .canvas-scroll.tool-erase .edit-overlay { cursor: crosshair; }
+    .canvas-scroll.tool-add_image .edit-overlay { cursor: copy; }
+
+    /* existing editable text runs */
+    .edit-span { position: absolute; box-sizing: border-box; border-radius: 2px; pointer-events: none; }
+    .canvas-scroll.tool-edit_text .edit-span,
+    .canvas-scroll.tool-select .edit-span {
+      cursor: text; background: rgba(232,101,10,0.07); outline: 1px dashed rgba(232,101,10,0.45); pointer-events: auto;
+    }
+    .edit-span:hover { background: rgba(232,101,10,0.18); outline-color: rgba(232,101,10,0.7); }
+    .edit-span.changed { background: rgba(34,197,94,0.18); outline: 1px solid #22c55e; }
+    .edit-span.editing { background: rgba(232,101,10,0.22); outline: 1.5px solid var(--accent); }
+    .edit-span-input { position: absolute; box-sizing: border-box; border: 1.5px solid var(--accent); border-radius: 3px; background: #fff; color: #111; padding: 0 4px; z-index: 12; box-shadow: 0 6px 18px rgba(0,0,0,0.2); }
+    .edit-span-input:focus { outline: none; }
+
+    /* rubber-band marquee */
+    .ed-marquee { position: absolute; z-index: 9; border: 1.5px dashed var(--accent); background: rgba(232,101,10,0.08); pointer-events: none; }
+
+    /* added objects */
+    .ed-obj { position: absolute; box-sizing: border-box; border: 1px solid transparent; border-radius: 3px; z-index: 6; min-width: 14px; min-height: 14px; }
+    .ed-obj.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 8px 24px rgba(0,0,0,0.22); z-index: 8; }
+    .ed-obj-body { position: absolute; inset: 0; overflow: hidden; display: block; outline: none; line-height: 1.25; }
+    .ed-obj[data-type="add_text"] .ed-obj-body,
+    .ed-obj[data-type="add_link"] .ed-obj-body { white-space: pre-wrap; word-break: break-word; padding: 1px 2px; cursor: text; color: #111; }
+    .ed-obj[data-type="add_link"] .ed-obj-body { color: #0a52d6; text-decoration: underline; }
+    .ed-obj[data-type="erase"] .ed-obj-body { background: #fff; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.04); }
+    .ed-obj[data-type="add_image"] .ed-obj-body { background: rgba(124,108,255,0.06); }
+    .ed-obj[data-type="add_image"] img { width: 100%; height: 100%; object-fit: contain; display: block; pointer-events: none; }
+    .ed-obj-empty::after { content: attr(data-placeholder); color: #9aa0ad; font-style: italic; }
+    .ed-obj-move { position: absolute; left: 50%; top: -26px; transform: translateX(-50%); height: 22px; padding: 0 9px; display: none; align-items: center; gap: 6px; background: var(--accent); color: #fff; border-radius: 6px; font-size: 10.5px; font-weight: 700; cursor: move; box-shadow: 0 6px 16px rgba(0,0,0,0.25); white-space: nowrap; }
+    .ed-obj.selected .ed-obj-move { display: inline-flex; }
+    .ed-obj-move .od-del { appearance: none; border: none; background: rgba(255,255,255,0.22); color: #fff; width: 16px; height: 16px; border-radius: 5px; cursor: pointer; display: grid; place-items: center; font-size: 12px; line-height: 1; padding: 0; }
+    .ed-obj-move .od-del:hover { background: rgba(255,255,255,0.4); }
+    .ed-obj-handle { position: absolute; width: 12px; height: 12px; right: -7px; bottom: -7px; background: #fff; border: 2px solid var(--accent); border-radius: 50%; cursor: nwse-resize; display: none; z-index: 10; }
+    .ed-obj.selected .ed-obj-handle { display: block; }
+    .ed-linkbar { position: absolute; left: 0; bottom: -40px; display: none; align-items: center; gap: 6px; background: var(--shell); color: #fff; padding: 5px 8px; border-radius: 8px; box-shadow: 0 10px 28px rgba(0,0,0,0.35); white-space: nowrap; z-index: 12; }
+    .ed-obj.selected[data-type="add_link"] .ed-linkbar { display: flex; }
+    .ed-linkbar label { font-size: 10px; color: var(--shell-muted); font-weight: 700; }
+    .ed-linkbar input { height: 26px; min-width: 200px; border-radius: 6px; border: 1px solid var(--shell-line); background: var(--shell-2); color: #fff; padding: 0 8px; font-size: 12px; }
+
+    /* ---------- Right panel (properties) ---------- */
+    .right { background: var(--shell); color: var(--shell-text); border-left: 1px solid var(--shell-line); display: flex; flex-direction: column; min-height: 0; }
+    .rp-head { padding: 13px 16px; border-bottom: 1px solid var(--shell-line); flex: none; }
+    .rp-head .rp-title { font-size: 13px; font-weight: 700; }
+    .rp-head .rp-sub { font-size: 11px; color: var(--shell-muted); margin-top: 3px; }
+    .rp-body { overflow-y: auto; padding: 16px; flex: 1; min-height: 0; }
+
+    .rp-section-label { font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--shell-muted); margin: 0 0 10px; }
+
+    .ed-tools { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 18px; }
+    .ed-tool { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 11px 6px; border-radius: 10px; background: var(--shell-2); border: 1px solid var(--shell-line); color: var(--shell-text); font-size: 11.5px; font-weight: 600; transition: background .14s, border-color .14s, transform .1s; }
+    .ed-tool svg { width: 19px; height: 19px; }
+    .ed-tool:hover { background: var(--shell-3); }
+    .ed-tool:active { transform: scale(0.96); }
+    .ed-tool.active { background: var(--accent-soft); border-color: rgba(232,101,10,0.5); color: var(--accent); }
+
+    .ed-props { display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; }
+    .ed-prop-select { width: 100%; background: var(--shell-2); border: 1px solid var(--shell-line); color: #e9e9f5; border-radius: 8px; padding: 9px 10px; font-size: 13px; }
+    .ed-prop-select:focus { outline: none; border-color: var(--accent); }
+    .ed-props-row { display: flex; align-items: center; gap: 8px; }
+    .ed-size { display: inline-flex; align-items: center; background: var(--shell-2); border: 1px solid var(--shell-line); border-radius: 8px; overflow: hidden; }
+    .ed-size input { width: 46px; height: 34px; border: none; background: transparent; color: #fff; text-align: center; font-size: 13px; }
+    .ed-size input:focus { outline: none; }
+    .zbtn { width: 30px; height: 34px; border: none; background: transparent; color: var(--shell-muted); font-size: 16px; font-weight: 700; }
+    .zbtn:hover { background: var(--shell-3); color: #fff; }
+    .ed-toggle { width: 34px; height: 34px; border-radius: 8px; background: var(--shell-2); border: 1px solid var(--shell-line); color: var(--shell-text); display: grid; place-items: center; font-size: 14px; }
+    .ed-toggle svg { width: 16px; height: 16px; }
+    .ed-toggle:hover { background: var(--shell-3); }
+    .ed-toggle.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .ed-color { position: relative; width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--shell-line); background: var(--shell-2); display: grid; place-items: center; cursor: pointer; overflow: hidden; }
+    .ed-color input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    .ed-color-dot { width: 18px; height: 18px; border-radius: 5px; background: #111; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.25); }
+    .ed-align { display: inline-flex; gap: 6px; }
+
+    .ed-hint { font-size: 12px; color: var(--shell-muted); line-height: 1.5; background: var(--shell-2); border: 1px solid var(--shell-line); border-radius: 9px; padding: 11px 12px; margin-bottom: 16px; }
+
+    .ed-sidebar-actions { display: flex; flex-direction: column; gap: 9px; }
+    .rp-dirty { font-size: 12px; color: var(--accent); font-weight: 600; }
+    .act-btn { width: 100%; height: 38px; border-radius: 9px; border: 1px solid var(--shell-line); background: var(--shell-2); color: var(--shell-text); font-weight: 600; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: background .14s, transform .1s; }
+    .act-btn svg { width: 16px; height: 16px; }
+    .act-btn:hover { background: var(--shell-3); }
+    .act-btn:active { transform: scale(0.98); }
+    .act-btn.danger { border-color: rgba(211,58,58,0.5); color: #ff8b8b; }
+    .act-btn.danger:hover { background: var(--low); color: #fff; }
+
+    .rp-result { margin-top: 14px; font-size: 12.5px; }
+    .rp-result .dl-link { display: inline-flex; align-items: center; gap: 7px; margin-top: 8px; color: #fff; background: var(--ok); padding: 9px 13px; border-radius: 9px; text-decoration: none; font-weight: 600; }
+    .rp-result .dl-link svg { width: 15px; height: 15px; }
+    .rp-result .dl-link:hover { filter: brightness(1.06); }
+
+    /* ---------- Status bar ---------- */
+    .status { background: var(--shell); color: var(--shell-muted); display: flex; align-items: center; gap: 18px; padding: 0 16px; font-size: 11.5px; border-top: 1px solid var(--shell-line); font-variant-numeric: tabular-nums; }
+    .status b { color: var(--shell-text); font-weight: 600; }
+    .status .st-spacer { flex: 1; }
+    .status .st-msg { display: inline-flex; align-items: center; gap: 6px; }
+    .status .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); display: inline-block; }
+    .status .dot.busy { background: var(--med); }
+    .status .dot.error { background: var(--low); }
+    .status .dot.warn { background: var(--med); }
+
+    /* ---------- Start screen / dropzone ---------- */
+    .start { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--canvas-bg); z-index: 30; }
+    .start.hidden { display: none; }
+    .dropzone { width: min(560px, 100%); background: var(--dz-bg); border: 2px dashed var(--dz-border); border-radius: 18px; padding: 44px 32px; text-align: center; transition: border-color .15s, background .15s; cursor: pointer; box-shadow: 0 12px 40px rgba(0,0,0,0.12); }
+    .dropzone.drag { border-color: var(--accent); background: var(--accent-soft); }
+    .dz-icon { width: 64px; height: 64px; margin: 0 auto 16px; border-radius: 18px; background: var(--accent-soft); display: grid; place-items: center; color: var(--accent); }
+    .dz-icon svg { width: 30px; height: 30px; }
+    .dz-title { font-size: 19px; font-weight: 700; color: var(--dz-title); }
+    .dz-sub { font-size: 13.5px; color: var(--dz-sub); margin-top: 6px; line-height: 1.5; }
+    .dz-actions { display: flex; gap: 10px; justify-content: center; margin-top: 20px; flex-wrap: wrap; }
+    .dz-btn { height: 42px; padding: 0 20px; border-radius: 10px; border: none; background: var(--accent); color: #fff; font-weight: 700; font-size: 13.5px; display: inline-flex; align-items: center; gap: 8px; }
+    .dz-btn svg { width: 17px; height: 17px; }
+    .dz-btn:hover { background: var(--accent-hover); }
+    .dz-btn.ghost { background: var(--shell-3); color: var(--shell-text); }
+    .dz-btn.ghost:hover { filter: brightness(0.95); }
+    .dz-status { margin-top: 16px; font-size: 13px; color: var(--dz-status); min-height: 18px; }
+    .dz-status.error { color: var(--low); }
+    .dz-status.busy { color: var(--med); }
+
+    /* toast */
+    .toast { position: fixed; bottom: 46px; left: 50%; transform: translateX(-50%) translateY(20px); background: #21212f; color: #fff; padding: 11px 18px; border-radius: 10px; font-size: 13px; z-index: 120; opacity: 0; transition: opacity .2s, transform .2s; box-shadow: 0 12px 36px rgba(0,0,0,0.4); display: flex; align-items: center; gap: 8px; pointer-events: none; }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .toast svg { width: 16px; height: 16px; color: #56d68f; }
+
+    @media (max-width: 1100px) { :root { --left-w: 150px; --right-w: 250px; } }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <input id="fileInput" type="file" accept="application/pdf,.pdf" class="hidden" />
+  <input id="imgInput" type="file" accept="image/*" class="hidden" />
+
+  <div class="app">
+    <!-- ============ TOP TOOLBAR ============ -->
+    <div class="toolbar">
+      <div class="tb-left">
+        <div class="logo" aria-hidden="true">
+          <svg viewBox="0 0 64 64"><path fill="currentColor" fill-rule="evenodd" d="M32 16c8.84 0 16 7.16 16 16 0 4.02-1.48 7.69-3.93 10.5l3.84 3.84a3.6 3.6 0 0 1-5.09 5.09l-4.2-4.2A15.93 15.93 0 0 1 32 48c-8.84 0-16-7.16-16-16s7.16-16 16-16Zm0 8a8 8 0 1 0 0 16 8 8 0 0 0 0-16Z"/></svg>
+        </div>
+        <span class="brand">pic</span>
+        <span class="mode-pill">PDF Editor</span>
+      </div>
+
+      <div class="tb-center" role="toolbar" aria-label="Editing tools">
+        <button class="tb-btn active" data-tool="select" title="Select / move (V)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 3 7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/></svg>
+          <span>Select</span>
+        </button>
+        <button class="tb-btn" data-tool="edit_text" title="Edit existing text (T)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+          <span>Edit text</span>
+        </button>
+        <button class="tb-btn" data-tool="add_text" title="Add a text box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+          <span>Add text</span>
+        </button>
+        <button class="tb-btn" data-tool="add_image" title="Insert an image">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg>
+          <span>Image</span>
+        </button>
+        <button class="tb-btn" data-tool="add_link" title="Add a hyperlink">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          <span>Link</span>
+        </button>
+        <button class="tb-btn" data-tool="erase" title="Erase / white-out">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 21-4.3-4.3a1 1 0 0 1 0-1.4L13 5l6 6-9.3 9.3a1 1 0 0 1-1.4 0z"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg>
+          <span>Erase</span>
+        </button>
+        <div class="tb-sep"></div>
+        <div class="tb-zoom">
+          <button class="tb-btn icon" id="zoomOut" title="Zoom out (Ctrl -)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+          <span class="zlevel" id="zoomLevel">100%</span>
+          <button class="tb-btn icon" id="zoomIn" title="Zoom in (Ctrl +)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+          <button class="zfit active" id="fitWidth" title="Fit width">Fit W</button>
+        </div>
+      </div>
+
+      <div class="tb-right">
+        <button class="tb-btn" id="openBtn" title="Open a different PDF">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <span>Open</span>
+        </button>
+        <button class="tb-btn" id="ocrBtn" title="Run OCR to make a scan editable">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="12" x2="17" y2="12"/></svg>
+          <span>Run OCR</span>
+        </button>
+        <div class="tb-sep"></div>
+        <div class="theme-switch" id="themeSwitch" role="group" aria-label="Color theme">
+          <button type="button" data-theme-value="light" title="Light" aria-label="Light theme" aria-pressed="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+          </button>
+          <button type="button" data-theme-value="system" title="System" aria-label="System theme" aria-pressed="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          </button>
+          <button type="button" data-theme-value="dark" title="Dark" aria-label="Dark theme" aria-pressed="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          </button>
+        </div>
+        <div class="tb-sep"></div>
+        <button class="btn-export" id="saveBtn" title="Save & download (Ctrl S)" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span id="saveText">Save &amp; Download</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ============ BODY: 3 PANELS ============ -->
+    <div class="body">
+      <aside class="left">
+        <div class="left-head">
+          <div class="left-title">Pages</div>
+          <div class="left-count" id="leftCount">No document</div>
+        </div>
+        <div class="thumbs shell-scroll" id="thumbs"></div>
+      </aside>
+
+      <main class="center">
+        <div class="canvas-scroll tool-select" id="canvasScroll"></div>
+
+        <!-- Start / open screen -->
+        <div class="start" id="startScreen">
+          <div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="Open a PDF to edit">
+            <div class="dz-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6"/><path d="m9 15 3-3 3 3"/></svg>
+            </div>
+            <div class="dz-title">Open a PDF to edit</div>
+            <div class="dz-sub">Drop a PDF here, or browse. Edit text in place with the original fonts, add text, images, links, or white-out — then save.</div>
+            <div class="dz-actions">
+              <button class="dz-btn" id="dzOpen" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                Choose PDF
+              </button>
+              <button class="dz-btn ghost" id="dzOcr" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="12" x2="17" y2="12"/></svg>
+                Scan? Run OCR
+              </button>
+            </div>
+            <div class="dz-status" id="dzStatus"></div>
+          </div>
+        </div>
+      </main>
+
+      <aside class="right">
+        <div class="rp-head">
+          <div class="rp-title" id="rpFileName">No document open</div>
+          <div class="rp-sub" id="rpFileSub">Open a PDF to start editing.</div>
+        </div>
+        <div class="rp-body">
+          <div class="rp-section-label">Tools</div>
+          <div class="ed-tools" role="toolbar" aria-label="Editing tools">
+            <button type="button" class="ed-tool active" data-tool="select" title="Select / move">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 3 7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/></svg>
+              <span>Select</span>
+            </button>
+            <button type="button" class="ed-tool" data-tool="edit_text" title="Edit existing text">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+              <span>Edit text</span>
+            </button>
+            <button type="button" class="ed-tool" data-tool="add_text" title="Add a text box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+              <span>Add text</span>
+            </button>
+            <button type="button" class="ed-tool" data-tool="add_image" title="Insert an image">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg>
+              <span>Image</span>
+            </button>
+            <button type="button" class="ed-tool" data-tool="add_link" title="Add a hyperlink">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+              <span>Link</span>
+            </button>
+            <button type="button" class="ed-tool" data-tool="erase" title="Erase / white-out">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 21-4.3-4.3a1 1 0 0 1 0-1.4L13 5l6 6-9.3 9.3a1 1 0 0 1-1.4 0z"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg>
+              <span>Erase</span>
+            </button>
+          </div>
+
+          <div class="rp-section-label" id="propsLabel">Text style</div>
+          <div class="ed-props" id="editProps">
+            <select id="edFont" class="ed-prop-select" title="Font">
+              <option value="">Original font</option>
+              <option value="helv">Helvetica / Arial</option>
+              <option value="tiro">Times</option>
+              <option value="cour">Courier</option>
+            </select>
+            <div class="ed-props-row">
+              <div class="ed-size">
+                <button type="button" class="zbtn" id="edSizeDown" title="Smaller">−</button>
+                <input id="edSize" type="number" min="4" max="200" value="14" title="Font size" />
+                <button type="button" class="zbtn" id="edSizeUp" title="Bigger">+</button>
+              </div>
+              <button type="button" class="ed-toggle" id="edBold" title="Bold"><b>B</b></button>
+              <button type="button" class="ed-toggle" id="edItalic" title="Italic"><i>I</i></button>
+              <label class="ed-color" title="Text colour">
+                <span id="edColorDot" class="ed-color-dot"></span>
+                <input id="edColor" type="color" value="#111111" />
+              </label>
+            </div>
+            <div class="ed-align" role="group" aria-label="Alignment">
+              <button type="button" class="ed-toggle active" data-align="0" title="Left"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="14" y2="12"/><line x1="4" y1="18" x2="18" y2="18"/></svg></button>
+              <button type="button" class="ed-toggle" data-align="1" title="Center"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="5" y1="18" x2="19" y2="18"/></svg></button>
+              <button type="button" class="ed-toggle" data-align="2" title="Right"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="10" y1="12" x2="20" y2="12"/><line x1="6" y1="18" x2="20" y2="18"/></svg></button>
+            </div>
+          </div>
+
+          <div class="ed-hint" id="toolHint">Select a tool above, then click or drag on the page.</div>
+
+          <div class="ed-sidebar-actions">
+            <span class="rp-dirty hidden" id="rpDirty">● unsaved changes</span>
+            <button id="resetBtn" type="button" class="act-btn danger">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v6h6"/><path d="M3 8a9 9 0 1 0 2.5-5.3L3 8"/></svg>
+              <span>Reset all edits</span>
+            </button>
+          </div>
+
+          <div class="rp-result hidden" id="rpResult"></div>
+        </div>
+      </aside>
+    </div>
+
+    <!-- ============ STATUS BAR ============ -->
+    <div class="status">
+      <span>Page <b id="stPage">–</b> of <b id="stTotal">0</b></span>
+      <span>Zoom <b id="stZoom">100%</b></span>
+      <span>Edits <b id="stEdits">0</b></span>
+      <span class="st-spacer"></span>
+      <span class="st-msg"><span class="dot" id="stDot"></span><b id="stStatus">Ready</b></span>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="/static/edit.js?v=2"></script>
+</body>
+</html>

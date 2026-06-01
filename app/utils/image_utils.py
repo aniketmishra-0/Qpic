@@ -142,12 +142,16 @@ def _strip_is_box_side(nonwhite, run_start: int, run_end: int, *, from_left: boo
 
     h, w, *_ = nonwhite.shape
     # Map the strip to absolute columns (the right side scans a reversed view).
+    # ``inward_rows`` is the region just past the strip, column-ordered so that
+    # index 0 is the column adjacent to the strip and increasing index moves
+    # *inward* (away from the edge). Building it once lets each corner check be a
+    # vectorized leading-run on a row instead of a per-pixel Python loop.
     if from_left:
         a, b = run_start, run_end  # [a, b) absolute columns
-        inward = range(b, w)
+        inward_rows = nonwhite[:, b:w]
     else:
         a, b = w - run_end, w - run_start
-        inward = range(a - 1, -1, -1)
+        inward_rows = nonwhite[:, :a][:, ::-1]
 
     strip = nonwhite[:, a:b]
     rows = np.where(strip.any(axis=1))[0]
@@ -160,16 +164,18 @@ def _strip_is_box_side(nonwhite, run_start: int, run_end: int, *, from_left: boo
     min_run = max(3, int(_BOX_CORNER_CONNECTOR_FRAC * w))
 
     def _has_corner(row: int) -> bool:
-        # Look a few rows around the end for the horizontal border.
+        # A corner is an unbroken inward run of ink (the box's horizontal
+        # border) starting at the strip edge, on any row within ±2 of the strip
+        # end. The leading-run length is the index of the first non-ink column,
+        # which reproduces the original "count until the first gap" scan.
         for r in range(max(0, row - 2), min(h, row + 3)):
-            count = 0
-            for c in inward:
-                if nonwhite[r, c]:
-                    count += 1
-                    if count >= min_run:
-                        return True
-                else:
-                    break
+            line = inward_rows[r]
+            if line.size == 0:
+                continue
+            false_idx = np.flatnonzero(~line)
+            run = int(false_idx[0]) if false_idx.size else int(line.size)
+            if run >= min_run:
+                return True
         return False
 
     return _has_corner(int(rows.min())) or _has_corner(int(rows.max()))

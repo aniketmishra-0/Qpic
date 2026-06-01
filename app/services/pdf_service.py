@@ -17,20 +17,33 @@ logger = logging.getLogger(__name__)
 ERR_INVALID_PDF = "Invalid PDF file"
 
 
-def validate_pdf(file_bytes: bytes, settings: Settings) -> None:
+def validate_pdf(
+    file_bytes: bytes,
+    settings: Settings,
+    *,
+    max_size_mb: int | None = None,
+    max_pages: int | None = None,
+) -> None:
     """Validate PDF bytes and enforce size/page limits.
+
+    By default the cropper limits (``MAX_PDF_SIZE_MB`` / ``MAX_PAGES``) apply.
+    Callers that do cheap, non-AI work (the Compress/Edit/Preflight tools) pass
+    their own, much larger ceilings via ``max_size_mb`` / ``max_pages``.
 
     Raises HTTPException if:
     - File is not a valid PDF
-    - File exceeds MAX_PDF_SIZE_MB
-    - Page count exceeds MAX_PAGES
+    - File exceeds the effective size limit
+    - Page count exceeds the effective page limit
     """
 
+    size_limit = max_size_mb if max_size_mb is not None else settings.MAX_PDF_SIZE_MB
+    page_limit = max_pages if max_pages is not None else settings.MAX_PAGES
+
     size_mb = len(file_bytes) / (1024 * 1024)
-    if size_mb > settings.MAX_PDF_SIZE_MB:
+    if size_mb > size_limit:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"PDF exceeds size limit ({size_mb:.2f}MB > {settings.MAX_PDF_SIZE_MB}MB)",
+            detail=f"PDF exceeds size limit ({size_mb:.2f}MB > {size_limit}MB)",
         )
 
     if not file_bytes.startswith(b"%PDF"):
@@ -43,10 +56,10 @@ def validate_pdf(file_bytes: bytes, settings: Settings) -> None:
         logger.error("pdf_open_failed error=%s", str(exc))
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=ERR_INVALID_PDF) from exc
 
-    if page_count > settings.MAX_PAGES:
+    if page_count > page_limit:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"PDF exceeds page limit ({page_count} > {settings.MAX_PAGES})",
+            detail=f"PDF exceeds page limit ({page_count} > {page_limit})",
         )
 
 

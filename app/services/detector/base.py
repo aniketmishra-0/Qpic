@@ -420,14 +420,40 @@ def detect_columns(
 
     bins = 200
     bin_w = page_width / bins
-    density = [0] * bins
-    for x0, x1 in intervals:
-        if x1 < x0:
-            x0, x1 = x1, x0
-        b0 = max(0, int(x0 / bin_w))
-        b1 = min(bins - 1, int(x1 / bin_w))
-        for b in range(b0, b1 + 1):
-            density[b] += 1
+
+    # Build the per-bin line-coverage density. The vectorized path uses a
+    # difference array (mark +1 at each interval's first bin, -1 just past its
+    # last, then cumulative-sum) so a page with hundreds of OCR lines costs one
+    # numpy pass instead of an O(lines x bins) Python loop. The pure-Python loop
+    # is kept as a fallback so column detection still works if numpy can't load
+    # (matching the rest of the codebase's optional-numpy pattern).
+    density: list[int]
+    try:
+        import numpy as np
+
+        arr = np.asarray(intervals, dtype=float)
+        lo = np.minimum(arr[:, 0], arr[:, 1])
+        hi = np.maximum(arr[:, 0], arr[:, 1])
+        # Match the scalar loop's asymmetric clamping exactly: b0 is only
+        # lower-bounded at 0 and b1 only upper-bounded at bins-1, so an interval
+        # lying entirely off the page (or negative) yields b0 > b1 and is
+        # dropped rather than piling onto an edge bin.
+        b0 = np.maximum(0, (lo / bin_w).astype(np.int64))
+        b1 = np.minimum(bins - 1, (hi / bin_w).astype(np.int64))
+        valid = b0 <= b1
+        diff = np.zeros(bins + 1, dtype=np.int64)
+        np.add.at(diff, b0[valid], 1)
+        np.add.at(diff, b1[valid] + 1, -1)
+        density = np.cumsum(diff[:bins]).tolist()
+    except Exception:
+        density = [0] * bins
+        for x0, x1 in intervals:
+            if x1 < x0:
+                x0, x1 = x1, x0
+            b0_i = max(0, int(x0 / bin_w))
+            b1_i = min(bins - 1, int(x1 / bin_w))
+            for b in range(b0_i, b1_i + 1):
+                density[b] += 1
 
     peak = max(density)
     if peak <= 0:
@@ -557,6 +583,25 @@ def _line_starts_with_option(text: str) -> bool:
     """True if a line begins with an MCQ option label ("(B)", "C.", "d)")."""
 
     return bool(_OPTION_START_RE.match((text or "").strip()))
+
+
+# An answer-key grid cell: a number then its correct option, the option being a
+# single bracketed/plain digit or letter — "1. (1)", "10. (3)", "1-B", "2 (a)".
+# Such cells are packed many-to-a-row in a compact key table, e.g.
+# "1. (1)  2. (2)  3. (3) …". They are NOT croppable solutions — they are the
+# answer key — yet their leading "1." reads as a question/solution marker and
+# the row repeats the whole 1..N numbering, duplicating every real solution. A
+# line that *is* a single such cell (short, nothing after the option) is matched
+# here so its marker can be dropped.
+_ANSWER_KEY_CELL_RE: re.Pattern[str] = re.compile(
+    r"^\s*(\d{1,3})\s*[\.\)\-:]?\s*\(?\s*([A-Ea-e1-5])\s*\)?\s*$"
+)
+
+
+def _is_answer_key_cell(text: str) -> bool:
+    """True if a line is a lone answer-key cell ("1. (1)", "10. (3)", "2-B")."""
+
+    return bool(_ANSWER_KEY_CELL_RE.match((text or "").strip()))
 
 
 def _other_columns_carry_independent_text(
@@ -1142,6 +1187,261 @@ def _recover_missing_markers(
     return recovered
 
 
+# --- Numbered-option suppression --------------------------------------------
+#
+# Some papers (most SSC / many Indian exam papers) label their four MCQ choices
+# with *numbers* — "1. … 2. … 3. … 4. …" — instead of letters "(A)-(D)". Those
+# option labels are indistinguishable, character-for-character, from a bare
+# question marker ("1."), so the weak-marker matcher treats every option as a
+# brand-new question. A 100-question paper then explodes into 700+ detected
+# items (each question's stem plus its four options), and the review panel fills
+# with hundreds of bogus "Question 1 / 2 / 3 / 4" entries.
+#
+# The give-away is typographic, not textual: a real question number *hangs* at
+# its column's left text margin, while every option is *indented* past it (the
+# option sits under the stem, not under the number). We learn each page's
+# question margin(s) from "anchor" markers whose number is too big to be one of
+# the four options (>= _ANCHOR_MIN_NUMBER), since those can only be questions,
+# then drop any weak marker indented past every margin as an option.
+#
+# This only ever runs on weak (bare-number) markers, and only when a confident
+# anchor margin exists — exactly the papers that have this ambiguity. Strong-Q
+# papers and lettered-option papers carry no weak option markers, so nothing is
+# dropped there.
+
+# How far (in pixels) past a page's marker margin a weak marker must start before
+# it is treated as an indented option rather than a question. A genuine question
+# number sits within a glyph-width of the margin; an option is indented by a
+# stem's worth (tens of px). Kept moderate so a real question at the margin is
+# never reclassified, while an indented option always is.
+_OPTION_INDENT_MIN_PX = 9.0
+
+# A page's question margin is anchored by markers whose number is too large to
+# be one of the four options. Only ``>= _ANCHOR_MIN_NUMBER`` markers define a
+# margin, since a "5." could still be an option in a 5-option paper but a "6."
+# essentially never is.
+_ANCHOR_MIN_NUMBER = 6
+
+# Two anchor left-edges within this many px belong to the same margin (one
+# column). A two-column page yields two well-separated margin clusters; jitter
+# inside one column stays well under this.
+_MARGIN_CLUSTER_TOL_PX = 6.0
+
+
+def _weak_marker_number(start: "QuestionStart") -> Optional[int]:
+    digits = re.findall(r"\d+", start.q_num or "")
+    return int(digits[0]) if digits else None
+
+
+def _cluster_margins(values: list[float], tol: float) -> list[float]:
+    """Collapse nearby left-edge x's into one representative margin each.
+
+    Sorted values within ``tol`` px of the running cluster are merged; each
+    cluster is represented by its minimum (the true hanging margin). A
+    single-column page yields one margin, a two-column page two.
+    """
+
+    if not values:
+        return []
+    ordered = sorted(values)
+    clusters: list[list[float]] = [[ordered[0]]]
+    for v in ordered[1:]:
+        if v - clusters[-1][-1] <= tol:
+            clusters[-1].append(v)
+        else:
+            clusters.append([v])
+    return [min(c) for c in clusters]
+
+
+def drop_numbered_options(starts: list["QuestionStart"]) -> list["QuestionStart"]:
+    """Drop weak markers that are really *numbered MCQ options*, not questions.
+
+    For each (page, side) we learn the question margin(s) — the left-x of markers
+    whose number is too big to be an option (``>= _ANCHOR_MIN_NUMBER``), clustered
+    so a two-column page keeps one margin per column — and discard any weak marker
+    indented more than :data:`_OPTION_INDENT_MIN_PX` past *every* margin. Strong
+    "Q" markers and markers on a (page, side) with no high-numbered anchor are
+    always kept, so the filter only acts where it has firm evidence and never
+    touches a lettered-option or strong-Q paper.
+    """
+
+    if not starts:
+        return starts
+
+    # Anchor margins per (page, is_solution), from high-numbered weak markers.
+    anchors: dict[tuple[int, bool], list[float]] = {}
+    for s in starts:
+        if s.is_strong:
+            continue
+        num = _weak_marker_number(s)
+        if num is not None and num >= _ANCHOR_MIN_NUMBER:
+            anchors.setdefault((s.page_num, bool(s.is_solution)), []).append(s.x_left)
+
+    margins: dict[tuple[int, bool], list[float]] = {
+        key: _cluster_margins(vals, _MARGIN_CLUSTER_TOL_PX)
+        for key, vals in anchors.items()
+    }
+
+    kept: list["QuestionStart"] = []
+    for s in starts:
+        if s.is_strong:
+            kept.append(s)
+            continue
+        cols = margins.get((s.page_num, bool(s.is_solution)))
+        if not cols:
+            # No confident margin on this page/side — leave the markers alone.
+            kept.append(s)
+            continue
+        # The marker's own column is the rightmost margin at or left of it (a
+        # small tolerance lets a marker sitting a hair left of its margin still
+        # bind to it). Anything further right than that is the column's body.
+        own = None
+        for m in cols:
+            if s.x_left >= m - _OPTION_INDENT_MIN_PX:
+                own = m
+        if own is None:
+            own = cols[0]
+        # Hanging at its column margin → a question; indented past it → an
+        # option label, drop it.
+        if s.x_left <= own + _OPTION_INDENT_MIN_PX:
+            kept.append(s)
+
+    return kept
+
+
+# A grid row must hold at least this many answer-key cells before the row is
+# trusted as part of a compact answer-key table (and its markers dropped). A
+# couple of "1. (1)"-shaped lines in ordinary prose never reach this; a real key
+# packs a dozen-plus per row.
+_ANSWER_KEY_MIN_CELLS_PER_ROW = 4
+
+# Rows whose baselines sit within this many px belong to the same grid row.
+_ANSWER_KEY_ROW_TOL_PX = 4.0
+
+
+def drop_answer_key_cells(
+    starts: list["QuestionStart"],
+    lines: list["ContentLine"],
+) -> list["QuestionStart"]:
+    """Drop markers that are really *answer-key grid cells*, not solutions.
+
+    Many papers print a compact answer key ("1. (1)  2. (2)  3. (3) …") before
+    the detailed solutions. Each cell's leading "1." reads as a marker and the
+    grid repeats the whole 1..N numbering, so every real solution is duplicated
+    by a key cell. We find rows that pack several answer-key cells
+    (``>= _ANSWER_KEY_MIN_CELLS_PER_ROW`` lone "n. (x)" lines at the same
+    baseline) and drop any marker that sits on such a row.
+
+    Conservative: only lone-cell lines count, and only when many share a row, so
+    a stray "1. (1)" inside a sentence or a normal numbered item is never
+    removed.
+    """
+
+    if not starts or not lines:
+        return starts
+
+    # Group answer-key-cell lines by (page, rounded baseline) into rows.
+    rows: dict[tuple[int, int], list["ContentLine"]] = {}
+    for ln in lines:
+        if not _is_answer_key_cell(getattr(ln, "text", "")):
+            continue
+        row_key = (ln.page_num, int(round(ln.y_top / _ANSWER_KEY_ROW_TOL_PX)))
+        rows.setdefault(row_key, []).append(ln)
+
+    # Vertical bands (per page) covered by a dense answer-key row.
+    grid_bands: dict[int, list[tuple[float, float]]] = {}
+    for (page, _), cells in rows.items():
+        if len(cells) < _ANSWER_KEY_MIN_CELLS_PER_ROW:
+            continue
+        top = min(c.y_top for c in cells)
+        bottom = max(c.y_bottom for c in cells)
+        grid_bands.setdefault(page, []).append((top, bottom))
+
+    if not grid_bands:
+        return starts
+
+    def _on_grid_row(s: "QuestionStart") -> bool:
+        bands = grid_bands.get(s.page_num)
+        if not bands:
+            return False
+        return any(top - 1.0 <= s.y_top <= bottom + 1.0 for top, bottom in bands)
+
+    return [s for s in starts if not _on_grid_row(s)]
+
+
+# --- Marker-cluster column fallback -----------------------------------------
+#
+# A tight two-column paper whose *options* are numbered "1.-4." fills the middle
+# gutter with option text, so :func:`detect_columns` sees no whitespace valley
+# and collapses the page to a single full-width column. Reading order then runs
+# straight down the page across both physical columns, so each question is cut
+# off at the next marker in y-order and its crop becomes a sliver. The question
+# *markers*, however, are an unambiguous column signal: they hang at each
+# column's left margin, forming well-separated x-clusters (e.g. x≈72 and x≈312).
+# When the geometry-based detector found only one column we rebuild the columns
+# from those marker clusters instead.
+
+# Minimum horizontal gap between two marker clusters, as a fraction of page
+# width, for them to count as separate columns. Two real columns are separated
+# by far more than this; jitter within one column is far less.
+_MARKER_COLUMN_GAP_FRAC = 0.12
+
+# A marker cluster must hold at least this many markers to anchor a column, so a
+# lone stray marker on the right half never splits a single-column page.
+_MIN_MARKERS_PER_COLUMN = 2
+
+# Padding (px) left of a column's marker margin when placing the column's left
+# edge, so the marker glyph itself is inside the column.
+_MARKER_COLUMN_PAD_PX = 6.0
+
+
+def columns_from_markers(
+    page_starts: list["QuestionStart"], page_width: float
+) -> Optional[list[tuple[float, float]]]:
+    """Derive column x-ranges from question-marker clusters, or None.
+
+    Markers hang at each column's left margin, so their ``x_left`` values form
+    one tight cluster per column. We cluster them by horizontal gap and, when at
+    least two clusters each carry ``>= _MIN_MARKERS_PER_COLUMN`` markers, tile
+    the page into columns split just left of each cluster's margin. Returns None
+    when the markers don't clearly describe a multi-column layout, so the caller
+    keeps whatever the geometry detector found.
+    """
+
+    if page_width <= 0 or len(page_starts) < 2 * _MIN_MARKERS_PER_COLUMN:
+        return None
+
+    xs = sorted(s.x_left for s in page_starts)
+    gap = page_width * _MARKER_COLUMN_GAP_FRAC
+
+    clusters: list[list[float]] = [[xs[0]]]
+    for x in xs[1:]:
+        if x - clusters[-1][-1] > gap:
+            clusters.append([x])
+        else:
+            clusters[-1].append(x)
+
+    big = [c for c in clusters if len(c) >= _MIN_MARKERS_PER_COLUMN]
+    if len(big) < 2:
+        return None
+
+    # Left margin of each column = its cluster's leftmost marker, minus a small
+    # pad so the marker glyph is included. Columns tile left→right, each ending
+    # where the next begins.
+    margins = [min(c) for c in big]
+    columns: list[tuple[float, float]] = []
+    for i, margin in enumerate(margins):
+        left = 0.0 if i == 0 else max(0.0, margins[i] - _MARKER_COLUMN_PAD_PX)
+        right = (
+            float(page_width)
+            if i == len(margins) - 1
+            else max(0.0, margins[i + 1] - _MARKER_COLUMN_PAD_PX)
+        )
+        columns.append((left, right))
+
+    return columns
+
+
 def starts_to_questions(
     starts: list[QuestionStart],
     page_heights: dict[int, float],
@@ -1189,9 +1489,22 @@ def starts_to_questions(
         filtered_starts.append(s)
     starts = filtered_starts
 
+    # Drop numbered MCQ option labels ("1. 2. 3. 4." under a stem) that the weak
+    # matcher mistook for question starts. Real question numbers hang at the
+    # column's left margin; options are indented past it. Done before gap
+    # recovery so recovery sees a clean question sequence (otherwise every
+    # question's "1.-4." options look like a dense, gap-free run).
+    starts = drop_numbered_options(starts)
+
+    # Drop answer-key grid cells ("1. (1)  2. (2) …") that read as markers but
+    # are the compact key, not croppable solutions — they otherwise duplicate
+    # every real solution number. Needs the content lines to spot the dense grid
+    # rows, so it runs once those are in hand below.
     widths = dict(page_widths or {})
     lines = list(content_lines or [])
     figure_list = list(figures or [])
+
+    starts = drop_answer_key_cells(starts, lines)
 
     # Gap recovery: re-read missed markers whose number OCR mangled. If the
     # detected numbers run 1,2,…,19,21,… the absent 20 is usually present in the
@@ -1229,9 +1542,19 @@ def starts_to_questions(
             if ln.page_num == page_num and ln.x_right > ln.x_left
         ]
         cols = detect_columns(intervals, float(page_width))
-        page_columns[page_num] = _validate_columns_with_markers(
+        cols = _validate_columns_with_markers(
             cols, starts, page_num, float(page_width), lines
         )
+        # A tight two-column page whose numbered options fill the gutter defeats
+        # the whitespace-based detector, collapsing it to one column and slicing
+        # every question into a sliver. When the markers themselves describe a
+        # clear multi-column layout, trust them instead.
+        if len(cols) <= 1:
+            page_starts = [s for s in starts if s.page_num == page_num]
+            marker_cols = columns_from_markers(page_starts, float(page_width))
+            if marker_cols is not None:
+                cols = marker_cols
+        page_columns[page_num] = cols
 
     # Strip isolated banner/title lines above the first question on a page
     # ("Polity", "DPP: 50", "Answer Key", "Hints & Solutions"). These sit in the

@@ -195,6 +195,22 @@ _BODY_BOTTOM_PCT = 94.0
 # crop above.
 _UNCOVERED_MAX_GAP_PCT = 14.0
 
+# Total height of uncovered body text directly ABOVE a column's topmost crop
+# before we call that crop's head cut off. This is the mirror of the below-only
+# band, but deliberately lower: when a question spilled across a page break the
+# stranded head is often a single statement or a lone option line (e.g.
+# "(D) Neither 1 nor 2") that is only ~2-3% of the page tall, yet still wrong.
+# The topmost-in-column + close-gap constraints keep this from firing on stray
+# lines, so a low threshold is safe here.
+_HEAD_MIN_BAND_PCT = 2.0
+
+# A page carrying at least this much body text that NO crop covers (and that
+# isn't merely the head/tail of an existing crop) almost certainly lost a whole
+# question or solution. Kept high so a single stranded footer/branding line
+# ("Android App | iOS App | PW Website") never trips it — only a real block of
+# missed content does.
+_ORPHAN_MIN_BAND_PCT = 6.0
+
 
 def _line_center_x(line: tuple[float, float, float, float]) -> float:
     return (line[2] + line[3]) / 2.0
@@ -293,6 +309,165 @@ def find_undercovered_items(
                 flagged.add(owner_key)
 
     return flagged
+
+
+def find_uncovered_head_items(
+    detected: Iterable[DetectedQuestion],
+    page_lines: "dict[int, list[tuple[float, float, float, float]]] | None",
+) -> set[tuple[bool, str]]:
+    """Flag crops with a band of their own body text left uncovered ABOVE them.
+
+    This is the mirror of :func:`find_undercovered_items`. The below-only check
+    misses the cross-page-spill case: when a question continues onto the next
+    page, its page-2 segment is sometimes detected starting *too low*, stranding
+    the question's opening line(s) at the very top of the column with no box over
+    them (e.g. Q19's "2. The right to health also includes access to essential
+    medicines." or Q18's spilled "(D) Neither 1 nor 2" sitting above the Q20
+    crop). Because that lost text is *above* the crop, not below, nothing flagged
+    it and no Fix button appeared.
+
+    For each column we take the topmost crop in it and look at the strip from the
+    body top down to that crop. Any uncovered text lines there that sit close
+    above the crop are its lost head; a run taller than :data:`_HEAD_MIN_BAND_PCT`
+    flags the crop. ``page_lines`` being None/empty disables the check.
+    """
+
+    if not page_lines:
+        return set()
+
+    items = list(detected)
+
+    segs_by_page: dict[int, list[tuple[tuple[bool, str], QuestionSegment]]] = {}
+    for q in items:
+        key = (bool(q.is_solution), q.q_num)
+        for seg in q.segments:
+            segs_by_page.setdefault(seg.page, []).append((key, seg))
+
+    flagged: set[tuple[bool, str]] = set()
+
+    for page, segs in segs_by_page.items():
+        lines = page_lines.get(page)
+        if not lines:
+            continue
+
+        for owner_key, owner in segs:
+            cx_lo, cx_hi = owner.x_start_pct, owner.x_end_pct
+            cx_mid = (cx_lo + cx_hi) / 2.0
+
+            # Only the topmost crop in this column can have a lost head: if any
+            # crop in the same column starts above this one, the strip above
+            # belongs to that crop (or the gap between them), not to a missed
+            # head of this one.
+            region_top = _BODY_TOP_PCT
+            has_crop_above = False
+            for k, s in segs:
+                if k == owner_key:
+                    continue
+                scx = (s.x_start_pct + s.x_end_pct) / 2.0
+                if not (cx_lo <= scx <= cx_hi):
+                    continue
+                if s.y_start_pct < owner.y_start_pct:
+                    has_crop_above = True
+                    break
+            if has_crop_above:
+                continue
+
+            # Uncovered lines in the strip above the owner, within its column.
+            head: list[tuple[float, float]] = []
+            for line in lines:
+                top, bottom = line[0], line[1]
+                cx = _line_center_x(line)
+                cy = (top + bottom) / 2.0
+                if not (cx_lo <= cx <= cx_hi):
+                    continue
+                if cy >= owner.y_start_pct or cy > _BODY_BOTTOM_PCT:
+                    continue
+                if cy < region_top:
+                    continue
+                if any(_seg_covers_line(s, line) for _, s in segs):
+                    continue
+                head.append((top, bottom))
+
+            if not head:
+                continue
+
+            head.sort()
+            # The lost head must end close above the crop; text far above is a
+            # separately missed item, not this crop's own clipped opening.
+            if (owner.y_start_pct - head[-1][1]) > _UNCOVERED_MAX_GAP_PCT:
+                continue
+
+            band = sum(b - t for t, b in head)
+            if band >= _HEAD_MIN_BAND_PCT:
+                flagged.add(owner_key)
+
+    return flagged
+
+
+def find_orphan_content_pages(
+    detected: Iterable[DetectedQuestion],
+    page_lines: "dict[int, list[tuple[float, float, float, float]]] | None",
+) -> list[int]:
+    """Return pages carrying a real block of body text that NO crop covers.
+
+    The per-item head/tail checks blame an *adjacent* crop for nearby uncovered
+    text. But a whole question or solution can be missed outright with no crop
+    near it at all — there's nothing to flag, so it stays silent. This scans
+    every page for uncovered body text that isn't merely the head/tail of an
+    existing crop (i.e. it's separated from any crop by more than
+    :data:`_UNCOVERED_MAX_GAP_PCT`) and reports the page when that orphan text is
+    taller than :data:`_ORPHAN_MIN_BAND_PCT`.
+
+    ``page_lines`` being None/empty disables the check.
+    """
+
+    if not page_lines:
+        return []
+
+    items = list(detected)
+    segs_by_page: dict[int, list[QuestionSegment]] = {}
+    for q in items:
+        for seg in q.segments:
+            segs_by_page.setdefault(seg.page, []).append(seg)
+
+    orphan_pages: list[int] = []
+
+    for page, lines in page_lines.items():
+        if not lines:
+            continue
+        segs = segs_by_page.get(page, [])
+
+        orphan_band = 0.0
+        for line in lines:
+            top, bottom = line[0], line[1]
+            cy = (top + bottom) / 2.0
+            if cy < _BODY_TOP_PCT or cy > _BODY_BOTTOM_PCT:
+                continue
+            if any(_seg_covers_line(s, line) for s in segs):
+                continue
+            # Skip lines that sit close to a crop in the same column — those are
+            # the head/tail of that crop and are handled by the per-item checks.
+            cx = _line_center_x(line)
+            near_crop = False
+            for s in segs:
+                if not (s.x_start_pct <= cx <= s.x_end_pct):
+                    continue
+                gap_below = top - s.y_end_pct
+                gap_above = s.y_start_pct - bottom
+                if -_COVER_Y_PAD <= gap_below <= _UNCOVERED_MAX_GAP_PCT:
+                    near_crop = True
+                    break
+                if -_COVER_Y_PAD <= gap_above <= _UNCOVERED_MAX_GAP_PCT:
+                    near_crop = True
+                    break
+            if near_crop:
+                continue
+            orphan_band += bottom - top
+
+        if orphan_band >= _ORPHAN_MIN_BAND_PCT:
+            orphan_pages.append(page)
+
+    return sorted(orphan_pages)
 
 
 def drop_phantom_numbers(
@@ -434,6 +609,7 @@ def build_analyzed_items(
     median_s = _median_extent(detected, is_solution=True)
     overlapping = find_overlapping_q_nums(detected)
     undercovered = find_undercovered_items(detected, page_lines)
+    uncovered_head = find_uncovered_head_items(detected, page_lines)
 
     items: list[AnalyzedItem] = []
     seen: set[tuple[bool, int | None]] = set()
@@ -458,6 +634,13 @@ def build_analyzed_items(
                 reason = (
                     "Text below this crop isn't covered by any box — the crop "
                     "may have stopped early. Re-select the full region."
+                )
+            elif (bool(q.is_solution), q.q_num) in uncovered_head:
+                flagged = True
+                reason = (
+                    "Text above this crop isn't covered by any box — the crop "
+                    "may have started too low (its opening line was cut off). "
+                    "Re-select the full region."
                 )
             elif (bool(q.is_solution), q.q_num) in overlapping:
                 flagged = True
@@ -514,6 +697,7 @@ def build_review_notes(
     median_s = _median_extent(detected, is_solution=True)
     overlapping = find_overlapping_q_nums(detected)
     undercovered = find_undercovered_items(detected, page_lines)
+    uncovered_head = find_uncovered_head_items(detected, page_lines)
 
     # Split questions vs solutions; numbering continuity is judged per side.
     for is_solution in (False, True):
@@ -545,6 +729,21 @@ def build_review_notes(
                             f"{label_one} {q.q_num}: Text below this crop isn't "
                             "covered by any box — the crop may have stopped early. "
                             "Re-select the full region."
+                        ),
+                        q_num=q.q_num,
+                        page=_primary_page(q),
+                        is_solution=is_solution,
+                    )
+                )
+            elif (is_solution, q.q_num) in uncovered_head:
+                notes.append(
+                    ReviewNote(
+                        kind="incomplete",
+                        message=(
+                            f"{label_one} {q.q_num}: Text above this crop isn't "
+                            "covered by any box — the crop may have started too "
+                            "low (its opening line was cut off). Re-select the "
+                            "full region."
                         ),
                         q_num=q.q_num,
                         page=_primary_page(q),
@@ -634,6 +833,26 @@ def build_review_notes(
                     ),
                 )
             )
+
+    # Whole-item miss: a page carrying a real block of body text that no crop
+    # covers (and that isn't the head/tail of an existing crop) means a question
+    # or solution was missed outright. There's no item to flag, so this is the
+    # only signal — surface it as a page-level note so the user knows to look.
+    orphan_pages = find_orphan_content_pages(detected, page_lines)
+    if orphan_pages:
+        pretty = ", ".join(str(p) for p in orphan_pages[:8])
+        more = "" if len(orphan_pages) <= 8 else f" (+{len(orphan_pages) - 8} more)"
+        notes.append(
+            ReviewNote(
+                kind="incomplete",
+                message=(
+                    f"Some text on page {pretty}{more} isn't covered by any crop "
+                    "— a question or solution may have been missed. Check the "
+                    "page and add it by hand if so."
+                ),
+                page=orphan_pages[0],
+            )
+        )
 
     if method_used != "ai" and not detected:
         notes.append(

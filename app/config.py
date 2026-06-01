@@ -78,6 +78,13 @@ class Settings(BaseSettings):
 
     MAX_PDF_SIZE_MB: int = 50
     MAX_PAGES: int = 100
+    # Separate, far higher limits for the standalone PDF tools (Compress / Edit /
+    # Preflight). These do plain PyMuPDF work — no per-page AI/OCR — so they can
+    # safely chew through big documents the cropper never should. Compress in
+    # particular is meant for the multi-hundred-MB scans people actually need to
+    # shrink, so the size ceiling is in gigabytes.
+    MAX_TOOLS_PDF_SIZE_MB: int = 2048
+    MAX_TOOLS_PAGES: int = 2000
     # Hard ceiling for a single streamed rename batch (across all chunks). The
     # batch never lives in memory — files are spooled to disk and the ZIP is
     # built from disk — so this can be large. Bump it if you routinely pack

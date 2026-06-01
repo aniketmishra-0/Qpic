@@ -5,11 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#14121f" id="themeColorMeta" />
     <title>Qpic</title>
-    <link
-      rel="icon"
-      type="image/svg+xml"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%234b8dff'/%3E%3Cstop offset='0.5' stop-color='%237c6cff'/%3E%3Cstop offset='1' stop-color='%23b14eff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='15' fill='url(%23g)'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 24v-7a3 3 0 0 1 3-3h7'/%3E%3Cpath d='M50 40v7a3 3 0 0 1-3 3h-7'/%3E%3Ccircle cx='32' cy='32' r='12'/%3E%3Cpath d='M38 38l7 7'/%3E%3C/g%3E%3C/svg%3E"
-    />
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
     <!-- Apply the saved theme before first paint to avoid a flash of the wrong colours. -->
     <script>
       (function () {
@@ -218,12 +214,12 @@
         flex: none;
         width: 38px;
         height: 38px;
-        border-radius: 12px;
+        border-radius: 11px;
         display: grid;
         place-items: center;
-        background: var(--accent-grad);
+        background: linear-gradient(160deg, #6a5cf0, #574bd4);
         box-shadow:
-          0 8px 22px -8px color-mix(in srgb, var(--accent) 85%, transparent),
+          0 8px 22px -8px rgba(90, 79, 214, 0.7),
           inset 0 1px 0 0 rgba(255, 255, 255, 0.28);
         color: #fff;
         position: relative;
@@ -241,10 +237,10 @@
       .brand:hover .logo {
         transform: translateY(-1px);
         box-shadow:
-          0 12px 26px -8px color-mix(in srgb, var(--accent) 90%, transparent),
+          0 12px 26px -8px rgba(90, 79, 214, 0.8),
           inset 0 1px 0 0 rgba(255, 255, 255, 0.32);
       }
-      .logo svg { width: 20px; height: 20px; display: block; position: relative; z-index: 1; }
+      .logo svg { width: 24px; height: 24px; display: block; position: relative; z-index: 1; }
       .brand-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
       .brand-name { font-size: 18px; font-weight: 750; letter-spacing: -0.015em; color: var(--appbar-text); }
       .brand-sub { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -820,6 +816,25 @@
       .rename-meta .rm-btn.danger:hover { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 50%, var(--border)); }
       .rename-meta .rm-btn:focus-visible { outline: none; box-shadow: var(--ring); }
 
+      /* Standalone .rm-btn (Edit panel: Run OCR / Open full editor / Reset all). */
+      .rm-btn {
+        appearance: none;
+        display: inline-flex; align-items: center; gap: 6px;
+        font-family: inherit; font-size: 12.5px; font-weight: 600;
+        color: var(--muted);
+        background: var(--field);
+        border: 1px solid var(--border);
+        border-radius: 9px;
+        padding: 7px 12px;
+        cursor: pointer;
+        text-decoration: none;
+        transition: color 140ms ease, border-color 140ms ease, background 140ms ease;
+      }
+      .rm-btn svg { width: 15px; height: 15px; }
+      .rm-btn:hover { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); background: color-mix(in srgb, var(--accent) 7%, var(--field)); }
+      .rm-btn.danger:hover { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 50%, var(--border)); background: color-mix(in srgb, var(--danger) 7%, var(--field)); }
+      .rm-btn:focus-visible { outline: none; box-shadow: var(--ring); }
+
       .rename-gallery {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -1278,6 +1293,7 @@
       .status.is-error { border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); background: color-mix(in srgb, var(--danger) 9%, var(--panel-2)); }
       .status.is-ok { border-color: color-mix(in srgb, var(--success) 45%, var(--border)); background: color-mix(in srgb, var(--success) 9%, var(--panel-2)); }
       .status.is-busy { border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+      .status.is-warn { border-color: color-mix(in srgb, var(--warn) 50%, var(--border)); background: color-mix(in srgb, var(--warn) 10%, var(--panel-2)); }
       .status .s-icon { flex: none; display: grid; place-items: center; width: 20px; height: 20px; }
       .status .s-icon svg { width: 18px; height: 18px; }
       .status .muted { color: var(--muted); }
@@ -1505,15 +1521,22 @@
         background: color-mix(in srgb, var(--accent) 16%, transparent);
         pointer-events: none; z-index: 5;
       }
+      /* Boxes are outlined, NOT filled. A translucent fill looks fine for one
+         box but stacks into an opaque mass where many boxes overlap (e.g. the
+         answer-key region), hiding the page text and every box's edges. Using
+         only borders keeps the page readable and each box's extent visible no
+         matter how many overlap. */
       .existing-box {
         position: absolute; border: 1.5px dashed color-mix(in srgb, var(--success) 70%, #fff 0%);
-        background: color-mix(in srgb, var(--success) 8%, transparent);
+        background: transparent;
         pointer-events: none; font-size: 10px; color: #06281b;
         border-radius: 3px;
-        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35);
+        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.55), inset 0 0 0 1px rgba(255, 255, 255, 0.45);
       }
-      .existing-box.flagged { border-color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); }
-      .existing-box.editing { border: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+      .existing-box.flagged { border-color: var(--warn); background: transparent; }
+      .existing-box.editing {
+        border: 2px solid var(--accent); background: transparent;
+      }
       .existing-box .tag {
         position: absolute; top: -1px; left: -1px; padding: 1px 6px;
         font-weight: 700; background: var(--success); color: #fff; border-radius: 4px 0 6px 0;
@@ -1527,7 +1550,7 @@
          handles are interactive, for nudging an edge without a full redraw. */
       .existing-box.editable {
         pointer-events: none; z-index: 8;
-        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35), 0 6px 18px -6px rgba(0, 0, 0, 0.5);
+        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.7), 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent), 0 6px 18px -6px rgba(0, 0, 0, 0.5);
       }
       .box-handle {
         position: absolute; width: 15px; height: 15px;
@@ -1749,6 +1772,592 @@
         .box-del { width: 24px; height: 24px; font-size: 12px; }
         .lb-nav { width: 52px; height: 52px; }
       }
+
+      /* ---------- Tools (Compress / Edit / Preflight) ---------- */
+      .tools-subtabs {
+        display: flex;
+        gap: 4px;
+        padding: 8px;
+        background: var(--panel-2);
+      }
+      .tools-subtab {
+        flex: 1;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        appearance: none;
+        border: 1px solid transparent;
+        background: transparent;
+        font-family: inherit;
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--muted);
+        padding: 11px 14px;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: color 140ms ease, background 140ms ease, border-color 140ms ease;
+      }
+      .tools-subtab svg { width: 17px; height: 17px; }
+      .tools-subtab:hover { color: var(--text); background: color-mix(in srgb, var(--accent) 7%, transparent); }
+      .tools-subtab.active {
+        color: var(--accent);
+        background: color-mix(in srgb, var(--accent) 12%, transparent);
+        border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+      }
+      .tools-subtab:focus-visible { outline: none; box-shadow: var(--ring); }
+
+      .tools-panel { display: none; flex-direction: column; }
+      .tools-panel.active { display: flex; }
+
+      /* Compression level cards */
+      .level-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+      }
+      .level-card {
+        text-align: left;
+        appearance: none;
+        background: var(--field);
+        border: 1.5px solid var(--border);
+        border-radius: 12px;
+        padding: 13px 15px;
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        transition: border-color 140ms ease, background 140ms ease, transform 80ms ease;
+      }
+      .level-card:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+      .level-card:active { transform: scale(0.99); }
+      .level-card.active {
+        border-color: var(--accent);
+        background: color-mix(in srgb, var(--accent) 8%, transparent);
+      }
+      .level-card .lv-title { font-weight: 700; font-size: 14px; color: var(--text); }
+      .level-card .lv-sub { font-size: 12px; color: var(--muted); line-height: 1.4; }
+      .level-card:focus-visible { outline: none; box-shadow: var(--ring); }
+
+      /* Result banners */
+      .tools-result {
+        margin-top: 14px;
+        border-radius: 12px;
+        padding: 14px 16px;
+        border: 1px solid var(--border);
+        background: var(--bg-soft, color-mix(in srgb, var(--accent) 5%, transparent));
+        font-size: 13.5px;
+        line-height: 1.55;
+      }
+      .tools-result .tr-big { font-size: 20px; font-weight: 800; color: var(--text); }
+      .tools-result .tr-row { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 6px; color: var(--muted); }
+      .tools-result .tr-note { margin-top: 8px; font-size: 12.5px; color: var(--muted); }
+      .tools-result a.dl-link {
+        display: inline-flex; align-items: center; gap: 7px;
+        margin-top: 12px; padding: 9px 16px; border-radius: 9px;
+        background: var(--accent-grad); color: #fff; font-weight: 700; font-size: 13.5px;
+        text-decoration: none;
+      }
+      .tools-result a.dl-link svg { width: 16px; height: 16px; }
+
+      /* Edit canvas */
+      .edit-hint-row {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 12px; margin-top: 12px; flex-wrap: wrap;
+      }
+      .edit-bar {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 12px; margin-bottom: 12px; flex-wrap: wrap;
+      }
+      .edit-pager { display: inline-flex; align-items: center; gap: 10px; }
+      .edit-page-label { font-size: 13px; font-weight: 600; color: var(--muted); }
+      .edit-bar-actions { display: inline-flex; align-items: center; gap: 12px; }
+      .edit-dirty { font-size: 12.5px; font-weight: 600; color: var(--accent); }
+
+      /* Zoom toolbar */
+      .edit-zoom { display: inline-flex; align-items: center; gap: 4px; }
+      .edit-zoom .zbtn {
+        appearance: none; border: 1px solid var(--border); background: var(--field);
+        color: var(--text); width: 30px; height: 30px; border-radius: 7px; cursor: pointer;
+        display: grid; place-items: center; font-size: 15px; line-height: 1; font-weight: 700;
+      }
+      .edit-zoom .zbtn:hover { border-color: var(--accent); color: var(--accent); }
+      .edit-zoom .zfit {
+        width: auto; padding: 0 11px; font-size: 12px; font-weight: 600; height: 30px;
+        border: 1px solid var(--border); background: var(--field); color: var(--text);
+        border-radius: 7px; cursor: pointer;
+      }
+      .edit-zoom .zfit.active { background: color-mix(in srgb, var(--accent) 14%, transparent); border-color: var(--accent); color: var(--accent); }
+      .edit-zoom .zlevel { font-size: 12px; font-weight: 600; color: var(--muted); min-width: 44px; text-align: center; }
+
+      .edit-stage-wrap {
+        max-height: 80vh; overflow: auto; border-radius: 12px;
+        border: 1px solid var(--border); background: #d9dade;
+        display: flex; align-items: flex-start; justify-content: center; padding: 20px;
+      }
+      .edit-stage {
+        position: relative; line-height: 0; flex: none;
+        background: #fff; box-shadow: 0 6px 28px rgba(0,0,0,0.18);
+      }
+      .edit-stage img { display: block; width: 100%; height: 100%; }
+      .edit-overlay { position: absolute; inset: 0; }
+      .edit-span {
+        position: absolute;
+        box-sizing: border-box;
+        cursor: text;
+        border-radius: 2px;
+        outline: 1px dashed transparent;
+        transition: background 120ms ease, outline-color 120ms ease;
+        pointer-events: none;
+      }
+      /* When the Edit-text / Select tool is active, gently reveal every editable
+         run so it's obvious the text can be clicked (Acrobat-style), and let it
+         capture clicks. Other tools (add-text/erase/image/link) draw freely. */
+      .ed-scroll.tool-edit_text .edit-span,
+      .ed-scroll.tool-select .edit-span {
+        background: color-mix(in srgb, var(--accent) 7%, transparent);
+        outline-color: color-mix(in srgb, var(--accent) 24%, transparent);
+        pointer-events: auto;
+      }
+      .edit-span:hover { background: color-mix(in srgb, var(--accent) 16%, transparent); outline-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+      .edit-span.changed { background: color-mix(in srgb, #22c55e 18%, transparent); outline: 1px solid #22c55e; }
+      .edit-span.editing { background: color-mix(in srgb, var(--accent) 22%, transparent); outline: 1.5px solid var(--accent); }
+      .edit-span-input {
+        position: absolute; box-sizing: border-box;
+        border: 1.5px solid var(--accent);
+        border-radius: 3px;
+        background: #fff; color: #111;
+        padding: 0 3px; font-family: inherit;
+        box-shadow: 0 6px 18px rgba(0,0,0,0.18);
+        z-index: 5;
+      }
+
+      /* ---- Acrobat-style editor workspace: left tool rail + right preview ---- */
+      .editor-card { padding: 0; overflow: hidden; }
+      .ed-layout {
+        display: grid;
+        grid-template-columns: 260px minmax(0, 1fr);
+        align-items: stretch;
+        min-height: 0;
+      }
+      .ed-sidebar {
+        display: flex; flex-direction: column; gap: 10px;
+        padding: 14px; border-right: 1px solid var(--border-soft);
+        background: var(--panel-2);
+      }
+      .ed-main { display: flex; flex-direction: column; min-width: 0; }
+      .ed-main-bar {
+        display: flex; align-items: center; justify-content: flex-end;
+        gap: 12px; padding: 10px 14px;
+        border-bottom: 1px solid var(--border-soft); background: var(--panel-2);
+      }
+
+      /* File row in the sidebar */
+      .ed-file {
+        display: flex; align-items: center; justify-content: space-between; gap: 8px;
+        padding-bottom: 10px; border-bottom: 1px solid var(--border-soft);
+      }
+      .ed-file-meta { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
+      .ed-file-meta svg { width: 18px; height: 18px; color: var(--accent); flex: none; }
+      .ed-file-name {
+        font-size: 12.5px; font-weight: 600; color: var(--text);
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .ed-section-label {
+        font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+        color: var(--muted-2); margin-top: 4px;
+      }
+      .ed-sidebar-actions { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--border-soft); flex-wrap: wrap; gap: 8px; }
+
+      /* Tools stack vertically in the left rail */
+      .ed-tools { display: flex; flex-direction: column; gap: 4px; }
+      .ed-tool {
+        display: inline-flex; align-items: center; gap: 9px;
+        height: 36px; padding: 0 11px; border-radius: 9px; width: 100%;
+        border: 1px solid transparent; background: transparent; color: var(--text);
+        font-size: 12.5px; font-weight: 600; cursor: pointer; text-align: left;
+        transition: background 120ms ease, border-color 120ms ease, transform 120ms ease;
+      }
+      .ed-tool svg { width: 16px; height: 16px; flex: none; }
+      .ed-tool:hover { background: var(--field); }
+      .ed-tool:active { transform: scale(0.98); }
+      .ed-tool.active { background: color-mix(in srgb, var(--accent) 16%, transparent); border-color: var(--accent); color: var(--accent); }
+
+      .ed-zoom { display: inline-flex; align-items: center; gap: 4px; }
+      .ed-zoom .zbtn {
+        appearance: none; border: 1px solid var(--border); background: var(--field);
+        color: var(--text); width: 30px; height: 30px; border-radius: 7px; cursor: pointer;
+        display: grid; place-items: center; font-size: 15px; font-weight: 700; line-height: 1;
+      }
+      .ed-zoom .zbtn:hover { border-color: var(--accent); color: var(--accent); }
+      .ed-zoom .zlevel { font-size: 12px; font-weight: 600; color: var(--muted); min-width: 46px; text-align: center; }
+      .ed-zoom .zfit {
+        width: auto; padding: 0 11px; height: 30px; font-size: 12px; font-weight: 600;
+        border: 1px solid var(--border); background: var(--field); color: var(--text);
+        border-radius: 7px; cursor: pointer;
+      }
+      .ed-zoom .zfit.active { background: color-mix(in srgb, var(--accent) 14%, transparent); border-color: var(--accent); color: var(--accent); }
+
+      .ed-props {
+        display: flex; flex-direction: column; align-items: stretch; gap: 8px;
+        padding: 0;
+      }
+      .ed-props-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+      .ed-prop-select {
+        height: 32px; border-radius: 8px; border: 1px solid var(--border);
+        background: var(--field); color: var(--text); padding: 0 8px; font-size: 12.5px; font-family: inherit;
+        width: 100%;
+      }
+      .ed-size { display: inline-flex; align-items: center; gap: 3px; }
+      .ed-size input { width: 50px; height: 32px; text-align: center; border-radius: 8px; border: 1px solid var(--border); background: var(--field); color: var(--text); font-family: inherit; }
+      .ed-size .zbtn { appearance: none; border: 1px solid var(--border); background: var(--field); color: var(--text); width: 28px; height: 32px; border-radius: 7px; cursor: pointer; font-size: 14px; font-weight: 700; }
+      .ed-toggle {
+        appearance: none; min-width: 32px; height: 32px; padding: 0 8px;
+        border: 1px solid var(--border); background: var(--field); color: var(--text);
+        border-radius: 8px; cursor: pointer; display: inline-grid; place-items: center;
+      }
+      .ed-toggle svg { width: 16px; height: 16px; }
+      .ed-toggle:hover { border-color: var(--accent); }
+      .ed-toggle.active { background: color-mix(in srgb, var(--accent) 16%, transparent); border-color: var(--accent); color: var(--accent); }
+      .ed-color { position: relative; display: inline-grid; place-items: center; width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; overflow: hidden; background: var(--field); }
+      .ed-color input { position: absolute; inset: -6px; width: 150%; height: 150%; border: none; padding: 0; cursor: pointer; }
+      .ed-color-dot { width: 16px; height: 16px; border-radius: 4px; background: #111; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.2); pointer-events: none; }
+      .ed-align { display: inline-flex; gap: 3px; }
+
+      .ed-hint { font-size: 12px; color: var(--muted); line-height: 1.45; padding: 2px 0; }
+
+      .ed-scroll {
+        flex: 1 1 auto; min-height: 0;
+        height: 74vh; max-height: 74vh; overflow-y: auto; scroll-behavior: smooth;
+        background:
+          radial-gradient(120% 80% at 50% 0%, rgba(255,255,255,0.04), transparent 60%),
+          #4a4754;
+        padding: 26px 22px; display: flex; flex-direction: column;
+        align-items: center; gap: 26px;
+      }
+      :root[data-theme="light"] .ed-scroll { background: #d9dade; }
+      @media (prefers-color-scheme: light) { :root[data-theme="system"] .ed-scroll { background: #d9dade; } }
+      .ed-page {
+        position: relative; flex: none; line-height: 0;
+        background: #fff; box-shadow: 0 6px 28px rgba(0,0,0,0.18);
+      }
+      .ed-page img { display: block; width: 100%; height: 100%; }
+      .ed-page .ed-pnum {
+        position: absolute; top: -20px; left: 0; font-size: 11px; line-height: 1;
+        color: #5b5b67; font-weight: 600;
+      }
+      /* The active editing tool sets the cursor over the whole page surface. */
+      .ed-page .edit-overlay { position: absolute; inset: 0; }
+      .ed-scroll.tool-add_text .edit-overlay,
+      .ed-scroll.tool-add_link .edit-overlay,
+      .ed-scroll.tool-erase .edit-overlay { cursor: crosshair; }
+      .ed-scroll.tool-add_image .edit-overlay { cursor: copy; }
+
+      /* Stack the editor (tools on top, preview below) on narrow screens. */
+      @media (max-width: 820px) {
+        .ed-layout { grid-template-columns: 1fr; }
+        .ed-sidebar { border-right: none; border-bottom: 1px solid var(--border-soft); }
+        .ed-tools { flex-direction: row; flex-wrap: wrap; }
+        .ed-tool { width: auto; }
+        .ed-sidebar-actions { margin-top: 8px; }
+        .ed-scroll { height: 60vh; max-height: 60vh; }
+      }
+
+      /* Rubber-band marquee while drawing a new box */
+      .ed-marquee {
+        position: absolute; z-index: 9;
+        border: 1.5px dashed var(--accent);
+        background: color-mix(in srgb, var(--accent) 12%, transparent);
+        pointer-events: none; border-radius: 3px;
+      }
+
+      /* ---- Added objects (text / image / link / erase) ---- */
+      .ed-obj {
+        position: absolute; box-sizing: border-box;
+        border: 1px solid transparent; border-radius: 3px;
+        z-index: 6; min-width: 14px; min-height: 14px;
+      }
+      .ed-obj.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 8px 24px rgba(0,0,0,0.22); z-index: 8; }
+      .ed-obj-body {
+        position: absolute; inset: 0; overflow: hidden;
+        display: block; outline: none; line-height: 1.25;
+      }
+      .ed-obj[data-type="add_text"] .ed-obj-body,
+      .ed-obj[data-type="add_link"] .ed-obj-body {
+        white-space: pre-wrap; word-break: break-word; padding: 1px 2px; cursor: text;
+        color: #111;
+      }
+      .ed-obj[data-type="add_link"] .ed-obj-body { color: #0a52d6; text-decoration: underline; }
+      .ed-obj[data-type="erase"] .ed-obj-body { background: #fff; }
+      .ed-obj[data-type="add_image"] .ed-obj-body { background: rgba(124,108,255,0.06); }
+      .ed-obj[data-type="add_image"] img { width: 100%; height: 100%; object-fit: contain; display: block; pointer-events: none; }
+      .ed-obj-empty::after {
+        content: attr(data-placeholder); color: #9aa0ad; font-style: italic;
+      }
+      /* Drag-to-move bar — shown above a selected object */
+      .ed-obj-move {
+        position: absolute; left: 50%; top: -26px; transform: translateX(-50%);
+        height: 22px; padding: 0 9px; display: none; align-items: center; gap: 6px;
+        background: var(--accent); color: #fff; border-radius: 7px; cursor: move;
+        font-size: 11px; font-weight: 700; white-space: nowrap; z-index: 10;
+        box-shadow: 0 6px 16px rgba(0,0,0,0.25);
+      }
+      .ed-obj.selected .ed-obj-move { display: inline-flex; }
+      .ed-obj-move .od-del {
+        appearance: none; border: none; background: rgba(255,255,255,0.22);
+        color: #fff; width: 16px; height: 16px; border-radius: 5px; cursor: pointer;
+        display: grid; place-items: center; font-size: 12px; line-height: 1; padding: 0;
+      }
+      .ed-obj-move .od-del:hover { background: rgba(255,255,255,0.4); }
+      .ed-obj-handle {
+        position: absolute; width: 12px; height: 12px; right: -7px; bottom: -7px;
+        background: #fff; border: 2px solid var(--accent); border-radius: 50%;
+        cursor: nwse-resize; display: none; z-index: 10;
+      }
+      .ed-obj.selected .ed-obj-handle { display: block; }
+
+      /* Link URL popover */
+      .ed-linkbar {
+        position: absolute; left: 0; top: 100%; margin-top: 8px; z-index: 12;
+        display: none; gap: 6px; align-items: center; padding: 7px 8px;
+        background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+        box-shadow: var(--shadow); white-space: nowrap;
+      }
+      .ed-obj.selected[data-type="add_link"] .ed-linkbar { display: flex; }
+      .ed-linkbar input {
+        height: 28px; min-width: 200px; border-radius: 7px; border: 1px solid var(--border);
+        background: var(--field); color: var(--text); padding: 0 8px; font-size: 12px; font-family: inherit;
+      }
+      .ed-linkbar label { font-size: 11px; font-weight: 700; color: var(--muted); }
+
+      /* Preflight report */
+      .pf-verdict {
+        display: inline-flex; align-items: center; gap: 9px;
+        padding: 8px 16px; border-radius: 999px;
+        font-weight: 800; font-size: 14px; letter-spacing: 0.3px;
+      }
+      .pf-verdict.pass { background: color-mix(in srgb, #22c55e 18%, transparent); color: #15803d; }
+      .pf-verdict.warn { background: color-mix(in srgb, #f59e0b 20%, transparent); color: #b45309; }
+      .pf-verdict.fail { background: color-mix(in srgb, #ef4444 18%, transparent); color: #b91c1c; }
+      .pf-summary { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 14px 0 4px; color: var(--muted); font-size: 13px; }
+      .pf-summary b { color: var(--text); }
+      .pf-check {
+        display: flex; gap: 12px; padding: 12px 0;
+        border-top: 1px solid var(--border-soft);
+      }
+      .pf-dot { flex: none; width: 11px; height: 11px; border-radius: 50%; margin-top: 5px; }
+      .pf-dot.ok { background: #22c55e; }
+      .pf-dot.warn { background: #f59e0b; }
+      .pf-dot.fail { background: #ef4444; }
+      .pf-dot.info { background: var(--muted); }
+      .pf-check-body .pf-title { font-weight: 700; font-size: 13.5px; color: var(--text); }
+      .pf-check-body .pf-detail { font-size: 13px; color: var(--muted); line-height: 1.5; margin-top: 2px; }
+      .pf-sub { margin-top: 18px; }
+      .pf-sub-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); margin-bottom: 8px; }
+      .pf-chip {
+        display: inline-flex; align-items: center; gap: 6px;
+        font-size: 12px; padding: 4px 10px; border-radius: 8px;
+        background: color-mix(in srgb, var(--accent) 7%, transparent);
+        border: 1px solid var(--border); color: var(--text); margin: 0 6px 6px 0;
+      }
+      .pf-chip.bad { background: color-mix(in srgb, #ef4444 12%, transparent); border-color: color-mix(in srgb, #ef4444 40%, transparent); }
+
+      /* ===== Preflight resize card (clean redesign) ===== */
+      .pf-fix-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+      .pf-fix-head-left { display: flex; align-items: center; gap: 11px; }
+      .pf-fix-icon {
+        flex: none; width: 34px; height: 34px; border-radius: 9px;
+        display: grid; place-items: center;
+        background: color-mix(in srgb, var(--accent) 14%, var(--field));
+        border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border));
+        color: var(--accent);
+      }
+      .pf-fix-title { font-size: 15px; font-weight: 750; color: var(--text); letter-spacing: -0.01em; }
+      .pf-fix-sub { font-size: 11.5px; color: var(--muted-2); margin-top: 1px; }
+      .pf-fix-close {
+        flex: none; appearance: none; width: 30px; height: 30px; border-radius: 8px;
+        border: 1px solid var(--border); background: var(--field); color: var(--muted);
+        cursor: pointer; display: grid; place-items: center;
+        transition: color 130ms ease, border-color 130ms ease, background 130ms ease;
+      }
+      .pf-fix-close svg { width: 15px; height: 15px; }
+      .pf-fix-close:hover { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 50%, var(--border)); }
+
+      .pf-warn-banner {
+        display: flex; align-items: center; gap: 9px;
+        background: color-mix(in srgb, var(--warn) 12%, transparent);
+        border: 1px solid color-mix(in srgb, var(--warn) 32%, transparent);
+        color: var(--warn);
+        border-radius: var(--radius-sm); padding: 9px 13px; margin-bottom: 14px;
+        font-size: 12.5px; font-weight: 650;
+      }
+      .pf-warn-banner svg { flex: none; }
+
+      /* Collapsible toggle (page table + skip pages) */
+      .pf-table-toggle {
+        width: 100%; appearance: none;
+        display: flex; align-items: center; justify-content: space-between;
+        background: var(--field); border: 1px solid var(--border);
+        border-radius: var(--radius-sm); padding: 9px 13px;
+        font-family: inherit; font-size: 12.5px; font-weight: 650; color: var(--muted);
+        cursor: pointer; transition: border-color 130ms ease, color 130ms ease;
+      }
+      .pf-table-toggle:hover { color: var(--text); border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+      .pf-table-toggle .pf-chev { width: 15px; height: 15px; transition: transform 200ms ease; }
+      .pf-table-toggle.open .pf-chev { transform: rotate(180deg); }
+
+      .pf-table-wrap {
+        max-height: 240px; overflow-y: auto;
+        border: 1px solid var(--border); border-top: none;
+        border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+        margin-bottom: 6px;
+      }
+      .pf-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+      .pf-table thead tr {
+        position: sticky; top: 0; z-index: 2;
+        background: var(--panel-2); border-bottom: 1px solid var(--border);
+      }
+      .pf-table th {
+        padding: 7px 10px; text-align: left; font-weight: 700;
+        color: var(--muted-2); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px;
+      }
+      .pf-table td { padding: 6px 10px; color: var(--muted); border-bottom: 1px solid var(--border-soft); }
+      .pf-table tr:last-child td { border-bottom: none; }
+      .pf-table .pf-pg { font-weight: 700; color: var(--text); }
+      .pf-row-mismatch td, .pf-row-mismatch .pf-pg { color: var(--warn) !important; }
+
+      .pf-section-label {
+        font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px;
+        color: var(--muted-2); margin: 18px 0 9px;
+      }
+
+      /* Preset grid — uniform, clearly selectable cards */
+      .pf-preset-grid {
+        display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+      }
+      @media (max-width: 560px) { .pf-preset-grid { grid-template-columns: repeat(2, 1fr); } }
+      .pf-preset-btn {
+        appearance: none; display: flex; flex-direction: column; gap: 2px;
+        align-items: flex-start; text-align: left;
+        font-family: inherit; padding: 10px 12px;
+        background: var(--field); border: 1.5px solid var(--border);
+        border-radius: var(--radius-sm); cursor: pointer;
+        transition: border-color 140ms ease, background 140ms ease, transform 120ms ease;
+      }
+      .pf-preset-btn:hover { border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); transform: translateY(-1px); }
+      .pf-preset-btn .pf-preset-name { font-size: 13.5px; font-weight: 700; color: var(--text); }
+      .pf-preset-btn .pf-preset-dim { font-size: 10.5px; color: var(--muted-2); }
+      .pf-preset-btn.active {
+        border-color: var(--accent);
+        background: color-mix(in srgb, var(--accent) 12%, var(--field));
+        box-shadow: 0 0 0 1px var(--accent) inset;
+      }
+      .pf-preset-btn.active .pf-preset-name { color: var(--accent); }
+      .pf-preset-btn.active .pf-preset-dim { color: color-mix(in srgb, var(--accent) 70%, var(--muted)); }
+      .pf-preset-btn:focus-visible { outline: none; box-shadow: var(--ring); }
+
+      /* Custom W×H row */
+      .pf-custom-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+      .pf-custom-field {
+        display: flex; align-items: center; gap: 6px; flex: 1;
+        background: var(--field); border: 1px solid var(--border);
+        border-radius: var(--radius-sm); padding: 0 12px; height: 40px;
+      }
+      .pf-custom-field input {
+        flex: 1; min-width: 0; border: none; background: transparent; color: var(--text);
+        font-size: 13.5px; font-family: inherit; outline: none;
+      }
+      .pf-custom-field span { font-size: 12px; color: var(--muted-2); flex: none; }
+      .pf-custom-x { color: var(--muted-2); font-size: 14px; flex: none; }
+
+      /* Fill mode — two clear segmented cards */
+      .pf-fill-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+      .pf-fill-btn {
+        appearance: none; display: flex; flex-direction: column; gap: 2px; align-items: flex-start; text-align: left;
+        font-family: inherit; padding: 10px 14px;
+        background: var(--field); border: 1.5px solid var(--border);
+        border-radius: var(--radius-sm); cursor: pointer;
+        transition: border-color 140ms ease, background 140ms ease;
+      }
+      .pf-fill-btn:hover { border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); }
+      .pf-fill-btn .pf-fill-name { font-size: 13.5px; font-weight: 700; color: var(--text); }
+      .pf-fill-btn .pf-fill-desc { font-size: 10.5px; color: var(--muted-2); }
+      .pf-fill-btn.active {
+        border-color: var(--accent);
+        background: color-mix(in srgb, var(--accent) 12%, var(--field));
+        box-shadow: 0 0 0 1px var(--accent) inset;
+      }
+      .pf-fill-btn.active .pf-fill-name { color: var(--accent); }
+      .pf-fill-btn:focus-visible { outline: none; box-shadow: var(--ring); }
+
+      .pf-skip-input {
+        width: 100%; height: 40px; padding: 0 13px;
+        border-radius: var(--radius-sm); border: 1px solid var(--border);
+        background: var(--field); color: var(--text); font-size: 13.5px; font-family: inherit;
+        outline: none; transition: border-color 130ms ease;
+      }
+      .pf-skip-input:focus { border-color: var(--accent); box-shadow: var(--ring); }
+      .pf-hint { font-size: 11px; color: var(--muted-2); margin-top: 6px; }
+
+      /* ===== Preflight: compact, single-screen "app" layout ===== */
+      /* Two-column working area so the whole flow (upload → run → resize →
+         download) fits in one viewport without page scrolling. */
+      .pf-panel { margin-top: 14px; }
+      .pf-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+        gap: 16px;
+        align-items: stretch;
+      }
+      .pf-col-left, .pf-col-right { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+
+      /* Run button lives inside the upload card now (no sticky bottom bar). */
+      .pf-run-btn { margin-top: 14px; }
+
+      /* Report fills the leftover height in the left column so both columns
+         end at the same baseline — looks like one balanced panel. */
+      .pf-col-left #preflightReport { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; }
+      .pf-col-left #preflightReport.pf-inactive { justify-content: center; align-items: flex-start; }
+
+      /* Right column resize card scrolls internally if it ever gets tall,
+         keeping the download button reachable on one screen. */
+      .pf-col-right #preflightFixCard {
+        flex: 1;
+        max-height: calc(100vh - 150px);
+        overflow-y: auto;
+      }
+
+      /* Tighten internal spacing so more fits per screen. */
+      .pf-fix-head { margin-bottom: 12px; }
+      .pf-section-label { margin: 14px 0 8px; }
+      .pf-preset-grid { gap: 8px; }
+      .pf-preset-btn { padding: 9px 12px; }
+      .pf-fill-btn { padding: 9px 13px; }
+      .pf-panel #preflightFixBtn { margin-top: 16px !important; }
+      .pf-panel .pf-warn-banner { margin-bottom: 12px; }
+
+      /* Both cards are ALWAYS visible. When no preflight has run they sit in a
+         dimmed "inactive" state; once a file is checked they light up. */
+      .pf-inactive { opacity: 0.55; }
+      .pf-inactive .pf-fix-icon { opacity: 0.7; }
+      .pf-inactive #preflightFixBtn,
+      .pf-inactive .pf-preset-btn,
+      .pf-inactive .pf-fill-btn,
+      .pf-inactive .pf-table-toggle { pointer-events: none; }
+      .pf-verdict.pf-verdict-idle { background: var(--panel-2); color: var(--muted); }
+
+      /* Stack to one column on narrow screens. */
+      @media (max-width: 900px) {
+        .pf-grid { grid-template-columns: 1fr; }
+        .pf-col-left #preflightReport { flex: none; }
+        .pf-col-right #preflightFixCard { flex: none; max-height: none; overflow: visible; }
+      }
+
+      @media (max-width: 560px) {
+        .level-grid { grid-template-columns: 1fr; }
+        .tools-subtab span { display: none; }
+        .tools-subtab { padding: 12px; }
+      }
     </style>
   </head>
   <body>
@@ -1757,17 +2366,13 @@
       <div class="appbar-inner">
         <div class="brand">
           <div class="logo" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <!-- crop-mark corners -->
-              <path d="M5 9V6a1 1 0 0 1 1-1h3" />
-              <path d="M19 15v3a1 1 0 0 1-1 1h-3" />
-              <!-- stylized Q -->
-              <circle cx="12" cy="12" r="4.2" />
-              <path d="M14.2 14.2 16 16" />
+            <svg viewBox="0 0 64 64">
+              <!-- bold letter Q -->
+              <path fill="currentColor" fill-rule="evenodd" d="M32 16c8.84 0 16 7.16 16 16 0 4.02-1.48 7.69-3.93 10.5l3.84 3.84a3.6 3.6 0 0 1-5.09 5.09l-4.2-4.2A15.93 15.93 0 0 1 32 48c-8.84 0-16-7.16-16-16s7.16-16 16-16Zm0 8a8 8 0 1 0 0 16 8 8 0 0 0 0-16Z"/>
             </svg>
           </div>
           <div class="brand-text">
-            <span class="brand-name">Qpic</span>
+            <span class="brand-name">pic</span>
           </div>
         </div>
 
@@ -1784,6 +2389,10 @@
           <button type="button" class="tool-tab" data-tool="rename" role="tab" aria-selected="false">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
             <span>Rename Batch</span>
+          </button>
+          <button type="button" class="tool-tab" data-tool="tools" role="tab" aria-selected="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76Z"/></svg>
+            <span>Tools</span>
           </button>
         </div>
 
@@ -2209,6 +2818,388 @@
         </div>
       </div>
       <!-- ============ END RENAME BATCH TOOL ============ -->
+
+      <!-- ============ TOOLS (Compress / Edit / Preflight) ============ -->
+      <div id="toolsView" style="display:none;">
+        <input id="toolsFileInput" type="file" accept="application/pdf,.pdf" style="position:absolute;width:0;height:0;opacity:0;overflow:hidden;pointer-events:none;" tabindex="-1" aria-hidden="true" />
+
+        <!-- Sub-tool switcher -->
+        <div class="card" style="padding:0;overflow:hidden;">
+          <div class="tools-subtabs" id="toolsSubtabs" role="tablist" aria-label="PDF tools">
+            <button type="button" class="tools-subtab active" data-sub="compress" role="tab" aria-selected="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+              <span>Compress</span>
+            </button>
+            <button type="button" class="tools-subtab" data-sub="edit" role="tab" aria-selected="false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>
+              <span>Edit PDF</span>
+            </button>
+            <button type="button" class="tools-subtab" data-sub="preflight" role="tab" aria-selected="false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              <span>Preflight</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- ===== COMPRESS panel ===== -->
+        <div class="tools-panel active" id="toolsPanel-compress">
+          <div class="card">
+            <div class="section-title">Compress PDF</div>
+            <div id="compressDrop" class="dropzone" role="button" tabindex="0" aria-label="Upload a PDF to compress">
+              <div class="dz-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              </div>
+              <div class="dz-text">
+                <strong id="compressLabel">Drop a PDF here or click to browse</strong>
+                <span>PDF only • Max 2GB • Up to 2000 pages</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="section">
+              <div class="section-title">Compression level</div>
+              <div class="level-grid" id="compressLevels" role="radiogroup" aria-label="Compression level">
+                <button type="button" class="level-card" data-level="light" role="radio" aria-checked="false">
+                  <span class="lv-title">Light</span>
+                  <span class="lv-sub">Barely touches quality. Great for sharing.</span>
+                </button>
+                <button type="button" class="level-card active" data-level="balanced" role="radio" aria-checked="true">
+                  <span class="lv-title">Balanced</span>
+                  <span class="lv-sub">Good size cut, still crisp. Recommended.</span>
+                </button>
+                <button type="button" class="level-card" data-level="strong" role="radio" aria-checked="false">
+                  <span class="lv-title">Strong</span>
+                  <span class="lv-sub">Smaller file, softer images.</span>
+                </button>
+                <button type="button" class="level-card" data-level="extreme" role="radio" aria-checked="false">
+                  <span class="lv-title">Extreme</span>
+                  <span class="lv-sub">Smallest file, grayscale, lowest DPI.</span>
+                </button>
+              </div>
+
+              <label class="switch-card" id="targetCard" for="targetToggle" style="margin-top:14px;">
+                <span class="sw-text">
+                  <span class="sw-title">Target a file size</span>
+                  <span class="sw-sub">Push quality down until the PDF fits a size you choose (overrides level)</span>
+                </span>
+                <span class="switch" aria-hidden="true"></span>
+                <input id="targetToggle" type="checkbox" role="switch" />
+              </label>
+              <div class="collapsible collapsed" id="targetCollapse">
+                <div class="collapsible-inner">
+                  <div class="field">
+                    <span class="field-label">Target size (MB)</span>
+                    <input id="targetMb" type="number" min="0.1" step="0.1" value="2" placeholder="e.g. 2" />
+                    <span class="field-hint">Best-effort. If the target can't be met without destroying readability, you'll get the smallest safe result.</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="action-card">
+            <button id="compressBtn" class="btn-primary" disabled>
+              <span class="sparkle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg></span>
+              <span id="compressBtnText">Compress PDF</span>
+            </button>
+            <div id="compressStatus" class="status"><span class="muted">Upload a PDF, pick a level, then compress.</span></div>
+            <div id="compressResult" class="tools-result" style="display:none;"></div>
+          </div>
+        </div>
+
+        <!-- ===== EDIT panel ===== -->
+        <div class="tools-panel" id="toolsPanel-edit" style="display:none;">
+          <div class="card" id="editDropCard">
+            <div class="section-title">Edit PDF</div>
+            <div id="editDrop" class="dropzone" role="button" tabindex="0" aria-label="Upload a PDF to edit">
+              <div class="dz-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>
+              </div>
+              <div class="dz-text">
+                <strong id="editLabel">Drop a PDF here or click to browse</strong>
+                <span>Edit text in place with the original fonts • Run OCR on scans</span>
+              </div>
+            </div>
+            <div class="edit-hint-row">
+              <span class="field-hint">Scanned PDF with no selectable text? Run OCR first to make it editable.</span>
+              <button id="editOcrBtn" type="button" class="rm-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="12" x2="17" y2="12"/></svg>
+                <span>Run OCR</span>
+              </button>
+            </div>
+            <div class="edit-hint-row" style="margin-top:8px;">
+              <span class="field-hint">Prefer a full-screen workspace with page thumbnails? Open the full document editor — it carries over the PDF you have open here.</span>
+              <a id="openFullEditor" href="/edit" target="_blank" rel="noopener" class="rm-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
+                <span>Open full editor</span>
+              </a>
+            </div>
+          </div>
+
+          <!-- Editor workspace: left tool rail + right PDF preview (Acrobat-style) -->
+          <div class="card editor-card" id="editWorkspace" style="display:none;">
+            <div class="ed-layout">
+              <!-- ===== Left rail: file + editing tools + properties ===== -->
+              <aside class="ed-sidebar">
+                <div class="ed-file">
+                  <div class="ed-file-meta">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    <span class="ed-file-name" id="editFileName">document.pdf</span>
+                  </div>
+                  <button id="editChangeBtn" type="button" class="rm-btn" title="Open a different PDF">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    <span>Open another</span>
+                  </button>
+                </div>
+
+                <div class="ed-section-label">Tools</div>
+                <div class="ed-tools" role="toolbar" aria-label="Editing tools">
+                  <button type="button" class="ed-tool active" data-tool="select" title="Select / move">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 3 7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/></svg>
+                    <span>Select</span>
+                  </button>
+                  <button type="button" class="ed-tool" data-tool="edit_text" title="Edit existing text">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+                    <span>Edit text</span>
+                  </button>
+                  <button type="button" class="ed-tool" data-tool="add_text" title="Add a text box">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+                    <span>Add text</span>
+                  </button>
+                  <button type="button" class="ed-tool" data-tool="add_image" title="Insert an image">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg>
+                    <span>Image</span>
+                  </button>
+                  <button type="button" class="ed-tool" data-tool="add_link" title="Add a hyperlink">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                    <span>Link</span>
+                  </button>
+                  <button type="button" class="ed-tool" data-tool="erase" title="Erase / white-out an area">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 21-4.3-4.3a1 1 0 0 1 0-1.4L13 5l6 6-9.3 9.3a1 1 0 0 1-1.4 0z"/><path d="M22 21H7"/><path d="m5 11 9 9"/></svg>
+                    <span>Erase</span>
+                  </button>
+                </div>
+
+                <!-- Properties (text style); shown for text tools -->
+                <div class="ed-section-label" id="editPropsLabel">Text style</div>
+                <div class="ed-props" id="editProps">
+                  <select id="edFont" class="ed-prop-select" title="Font">
+                    <option value="">Original font</option>
+                    <option value="helv">Helvetica / Arial</option>
+                    <option value="tiro">Times</option>
+                    <option value="cour">Courier</option>
+                  </select>
+                  <div class="ed-props-row">
+                    <div class="ed-size">
+                      <button type="button" class="zbtn" id="edSizeDown" title="Smaller">−</button>
+                      <input id="edSize" type="number" min="4" max="200" value="12" title="Font size" />
+                      <button type="button" class="zbtn" id="edSizeUp" title="Bigger">+</button>
+                    </div>
+                    <button type="button" class="ed-toggle" id="edBold" title="Bold"><b>B</b></button>
+                    <button type="button" class="ed-toggle" id="edItalic" title="Italic"><i>I</i></button>
+                    <label class="ed-color" title="Text colour">
+                      <span id="edColorDot" class="ed-color-dot"></span>
+                      <input id="edColor" type="color" value="#111111" />
+                    </label>
+                  </div>
+                  <div class="ed-align" role="group" aria-label="Alignment">
+                    <button type="button" class="ed-toggle active" data-align="0" title="Left"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="14" y2="12"/><line x1="4" y1="18" x2="18" y2="18"/></svg></button>
+                    <button type="button" class="ed-toggle" data-align="1" title="Center"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="5" y1="18" x2="19" y2="18"/></svg></button>
+                    <button type="button" class="ed-toggle" data-align="2" title="Right"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="10" y1="12" x2="20" y2="12"/><line x1="6" y1="18" x2="20" y2="18"/></svg></button>
+                  </div>
+                </div>
+
+                <div class="ed-hint" id="editToolHint">Select a tool above, then click or drag on the page.</div>
+
+                <div class="edit-bar-actions ed-sidebar-actions">
+                  <span class="edit-dirty" id="editDirty" style="display:none;">● unsaved changes</span>
+                  <button id="editResetBtn" type="button" class="rm-btn danger">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v6h6"/><path d="M3 8a9 9 0 1 0 2.5-5.3L3 8"/></svg>
+                    <span>Reset all</span>
+                  </button>
+                </div>
+              </aside>
+
+              <!-- ===== Right: full PDF preview ===== -->
+              <section class="ed-main">
+                <div class="ed-main-bar">
+                  <div class="ed-zoom">
+                    <button id="editZoomOut" type="button" class="zbtn" title="Zoom out">−</button>
+                    <span class="zlevel" id="editZoomLevel">100%</span>
+                    <button id="editZoomIn" type="button" class="zbtn" title="Zoom in">+</button>
+                    <button id="editFitWidth" type="button" class="zfit active" title="Fit to width">Fit width</button>
+                  </div>
+                </div>
+                <!-- Continuous page scroll -->
+                <div class="ed-scroll" id="editScroll"></div>
+              </section>
+            </div>
+          </div>
+
+          <input id="edImageInput" type="file" accept="image/*" style="position:absolute;width:0;height:0;opacity:0;overflow:hidden;pointer-events:none;" tabindex="-1" aria-hidden="true" />
+
+          <div class="action-card" id="editActionCard" style="display:none;">
+            <button id="editApplyBtn" class="btn-primary" disabled>
+              <span class="sparkle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></span>
+              <span id="editApplyText">Save &amp; Download</span>
+            </button>
+            <div id="editStatus" class="status"><span class="muted">Open a PDF to start editing.</span></div>
+            <div id="editResult" class="tools-result" style="display:none;"></div>
+          </div>
+        </div>
+
+        <!-- ===== PREFLIGHT panel ===== -->
+        <div class="tools-panel pf-panel" id="toolsPanel-preflight" style="display:none;">
+          <div class="pf-grid">
+
+          <!-- LEFT column: upload + run + detailed report -->
+          <div class="pf-col-left">
+            <div class="card pf-upload-card">
+              <div class="section-title">Preflight PDF</div>
+              <div id="preflightDrop" class="dropzone" role="button" tabindex="0" aria-label="Upload a PDF to preflight">
+                <div class="dz-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                </div>
+                <div class="dz-text">
+                  <strong id="preflightLabel">Drop a PDF here or click to browse</strong>
+                  <span>Check fonts, image resolution, colour space, encryption &amp; more</span>
+                </div>
+              </div>
+              <button id="preflightBtn" class="btn-primary pf-run-btn" disabled>
+                <span class="sparkle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+                <span id="preflightBtnText">Run Preflight</span>
+              </button>
+              <div id="preflightStatus" class="status"><span class="muted">Upload a PDF and run the check.</span></div>
+            </div>
+
+            <div id="preflightReport" class="card pf-inactive">
+              <span class="pf-verdict pf-verdict-idle">NO FILE</span>
+              <div class="pf-summary"><span>Upload a PDF and run preflight to see fonts, image resolution, colour space &amp; more.</span></div>
+            </div>
+          </div>
+
+          <!-- RIGHT column: resize / page-fix card -->
+          <div class="pf-col-right">
+          <!-- Acrobat-style Preflight Check card: page table + resize all -->
+          <div id="preflightFixCard" class="card pf-inactive">
+            <!-- Header -->
+            <div class="pf-fix-head">
+              <div class="pf-fix-head-left">
+                <span class="pf-fix-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                </span>
+                <div>
+                  <div class="pf-fix-title">Resize pages</div>
+                  <div class="pf-fix-sub" id="pfPageCountBadge">Upload a PDF to begin</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Warning banner -->
+            <div id="pfWarningBanner" class="pf-warn-banner" style="display:none;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <span id="pfWarningText"></span>
+            </div>
+
+            <!-- Collapsible page table -->
+            <button id="pfTableToggle" class="pf-table-toggle" type="button">
+              <span>View per-page sizes</span>
+              <svg class="pf-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div id="pfTableWrap" class="pf-table-wrap" style="display:none;">
+              <table class="pf-table">
+                <thead>
+                  <tr>
+                    <th>Page</th><th>Size (mm)</th><th>Pixels</th><th>Format</th><th>Orient.</th>
+                  </tr>
+                </thead>
+                <tbody id="pfTableBody"></tbody>
+              </table>
+            </div>
+
+            <!-- Target size label -->
+            <div class="pf-section-label">Resize all pages to</div>
+
+            <!-- Unified preset grid (Auto is the first selectable option) -->
+            <div class="pf-preset-grid">
+              <button class="pf-preset-btn active" data-preset="auto">
+                <span class="pf-preset-name">Auto</span>
+                <span class="pf-preset-dim" id="pfAutoDim">Majority size</span>
+              </button>
+              <button class="pf-preset-btn" data-preset="a4">
+                <span class="pf-preset-name">A4</span><span class="pf-preset-dim">210×297mm</span>
+              </button>
+              <button class="pf-preset-btn" data-preset="a3">
+                <span class="pf-preset-name">A3</span><span class="pf-preset-dim">297×420mm</span>
+              </button>
+              <button class="pf-preset-btn" data-preset="letter">
+                <span class="pf-preset-name">Letter</span><span class="pf-preset-dim">216×279mm</span>
+              </button>
+              <button class="pf-preset-btn" data-preset="legal">
+                <span class="pf-preset-name">Legal</span><span class="pf-preset-dim">216×356mm</span>
+              </button>
+              <button class="pf-preset-btn" data-preset="a5">
+                <span class="pf-preset-name">A5</span><span class="pf-preset-dim">148×210mm</span>
+              </button>
+              <button class="pf-preset-btn" data-preset="square">
+                <span class="pf-preset-name">Square</span><span class="pf-preset-dim">216×216mm</span>
+              </button>
+              <button class="pf-preset-btn" data-preset="custom">
+                <span class="pf-preset-name">Custom</span><span class="pf-preset-dim">Set W×H</span>
+              </button>
+            </div>
+
+            <!-- Custom W × H (only shown when Custom selected) -->
+            <div id="pfCustomRow" class="pf-custom-row" style="display:none;">
+              <div class="pf-custom-field">
+                <input id="pfCustomW" type="number" min="10" max="1000" placeholder="Width" />
+                <span>mm</span>
+              </div>
+              <span class="pf-custom-x">×</span>
+              <div class="pf-custom-field">
+                <input id="pfCustomH" type="number" min="10" max="1000" placeholder="Height" />
+                <span>mm</span>
+              </div>
+            </div>
+
+            <!-- Fill mode -->
+            <div class="pf-section-label">Fill mode</div>
+            <div class="pf-fill-toggle">
+              <button id="pfFillFit" class="pf-fill-btn active">
+                <span class="pf-fill-name">Fit</span>
+                <span class="pf-fill-desc">Keep aspect ratio</span>
+              </button>
+              <button id="pfFillStretch" class="pf-fill-btn">
+                <span class="pf-fill-name">Stretch</span>
+                <span class="pf-fill-desc">Fill whole page</span>
+              </button>
+            </div>
+
+            <!-- Skip pages (collapsible) -->
+            <button id="pfSkipToggle" class="pf-table-toggle" type="button" style="margin-top:14px;">
+              <span>Skip pages (optional)</span>
+              <svg class="pf-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div id="pfSkipWrap" style="display:none;margin-top:8px;">
+              <input id="pfSkipPages" type="text" placeholder="e.g. 2, 5, 10-12" class="pf-skip-input" />
+              <div class="pf-hint">In pages par resize apply nahi hoga.</div>
+            </div>
+
+            <!-- Action button -->
+            <button id="preflightFixBtn" class="btn-primary" style="width:100%;margin-top:18px;">
+              <span class="sparkle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+              <span id="preflightFixText">Resize all pages</span>
+            </button>
+            <div id="preflightFixStatus" class="status"><span class="muted">Pick a size, then resize.</span></div>
+            <div id="preflightFixResult" class="tools-result" style="display:none;"></div>
+          </div>
+          </div><!-- /pf-col-right -->
+
+          </div><!-- /pf-grid -->
+        </div>
+      </div>
+      <!-- ============ END TOOLS ============ -->
 
       <!-- Image lightbox: view loaded images one-by-one -->
       <div id="renameLightbox" class="lightbox" role="dialog" aria-modal="true" aria-label="Image preview">
@@ -4296,6 +5287,7 @@
       const cropView = document.getElementById('cropView');
       const renameView = document.getElementById('renameView');
       const manualView = document.getElementById('manualView');
+      const toolsView = document.getElementById('toolsView');
       const headerSub = document.getElementById('headerSub');
       const clearBtn = document.getElementById('clearBtn');
 
@@ -4306,16 +5298,20 @@
         crop: 'Upload a PDF → smart-detect questions → download cropped ZIP',
         manual: 'Upload a PDF → draw boxes by hand → download cropped ZIP',
         rename: 'Add images → set a naming pattern → download a renamed ZIP',
+        tools: 'Compress, edit (with OCR) or preflight a PDF',
       };
 
       function switchTool(tool) {
-        activeTool = (tool === 'rename' || tool === 'manual') ? tool : 'crop';
+        const known = ['rename', 'manual', 'tools'];
+        activeTool = known.includes(tool) ? tool : 'crop';
         const isCrop = activeTool === 'crop';
         const isManual = activeTool === 'manual';
         const isRename = activeTool === 'rename';
+        const isTools = activeTool === 'tools';
         cropView.style.display = isCrop ? '' : 'none';
         manualView.style.display = isManual ? '' : 'none';
         renameView.style.display = isRename ? '' : 'none';
+        if (toolsView) toolsView.style.display = isTools ? '' : 'none';
         if (headerSub) headerSub.textContent = HEADER_SUBS[activeTool];
         // The auto tool's dropzone Clear/View buttons only belong to the crop view.
         if (clearBtn) clearBtn.hidden = !isCrop || !selectedFile;
@@ -5141,6 +6137,1128 @@
           closeHowTo();
         }
       });
+
+      // ====================================================================
+      //  TOOLS: Compress / Edit (with OCR) / Preflight
+      // ====================================================================
+      (function initTools() {
+        const subtabs = document.getElementById('toolsSubtabs');
+        if (!subtabs) return;
+
+        // ---- sub-tool switcher ----
+        function switchSub(sub) {
+          subtabs.querySelectorAll('.tools-subtab').forEach((b) => {
+            const on = b.dataset.sub === sub;
+            b.classList.toggle('active', on);
+            b.setAttribute('aria-selected', on ? 'true' : 'false');
+          });
+          ['compress', 'edit', 'preflight'].forEach((name) => {
+            const panel = document.getElementById('toolsPanel-' + name);
+            if (panel) {
+              const on = name === sub;
+              panel.classList.toggle('active', on);
+              panel.style.display = on ? '' : 'none';
+            }
+          });
+        }
+        subtabs.addEventListener('click', (e) => {
+          const btn = e.target.closest('.tools-subtab');
+          if (btn) switchSub(btn.dataset.sub);
+        });
+
+        // Shared dropzone wiring: click + drag/drop a single PDF.
+        function wireDrop(zone, onFile) {
+          if (!zone) return;
+          const open = () => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'application/pdf,.pdf';
+            input.onchange = () => { if (input.files && input.files[0]) onFile(input.files[0]); };
+            input.click();
+          };
+          zone.addEventListener('click', open);
+          zone.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+          });
+          ['dragenter', 'dragover'].forEach((ev) =>
+            zone.addEventListener(ev, (e) => { e.preventDefault(); zone.classList.add('dragover'); }));
+          ['dragleave', 'drop'].forEach((ev) =>
+            zone.addEventListener(ev, (e) => { e.preventDefault(); zone.classList.remove('dragover'); }));
+          zone.addEventListener('drop', (e) => {
+            const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+            if (f) onFile(f);
+          });
+        }
+
+        function isPdf(file) {
+          return file && (file.type === 'application/pdf' || /\.pdf$/i.test(file.name || ''));
+        }
+        function setStatus(el, html, kind) {
+          el.className = 'status' + (kind ? ' is-' + kind : '');
+          el.innerHTML = html;
+        }
+        function dlIcon() {
+          return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+        }
+
+        // ================= COMPRESS =================
+        const compressDrop = document.getElementById('compressDrop');
+        const compressLabel = document.getElementById('compressLabel');
+        const compressBtn = document.getElementById('compressBtn');
+        const compressStatus = document.getElementById('compressStatus');
+        const compressResult = document.getElementById('compressResult');
+        const compressLevels = document.getElementById('compressLevels');
+        const targetToggle = document.getElementById('targetToggle');
+        const targetCollapse = document.getElementById('targetCollapse');
+        const targetCard = document.getElementById('targetCard');
+        const targetMb = document.getElementById('targetMb');
+        let compressFile = null;
+        let compressLevel = 'balanced';
+
+        wireDrop(compressDrop, (file) => {
+          if (!isPdf(file)) { setStatus(compressStatus, 'Please choose a PDF file.', 'error'); return; }
+          compressFile = file;
+          compressLabel.textContent = file.name;
+          compressBtn.disabled = false;
+          compressResult.style.display = 'none';
+          setStatus(compressStatus, `Ready to compress <strong>${escapeHtml(file.name)}</strong> (${humanSize(file.size)}).`);
+        });
+
+        compressLevels.addEventListener('click', (e) => {
+          const card = e.target.closest('.level-card');
+          if (!card) return;
+          compressLevel = card.dataset.level;
+          compressLevels.querySelectorAll('.level-card').forEach((c) => {
+            const on = c === card;
+            c.classList.toggle('active', on);
+            c.setAttribute('aria-checked', on ? 'true' : 'false');
+          });
+        });
+
+        targetToggle.addEventListener('change', () => {
+          const on = targetToggle.checked;
+          targetCard.classList.toggle('on', on);
+          targetCollapse.classList.toggle('collapsed', !on);
+          // Dim the level cards when targeting a size (level is ignored then).
+          compressLevels.style.opacity = on ? '0.45' : '';
+          compressLevels.style.pointerEvents = on ? 'none' : '';
+        });
+
+        compressBtn.addEventListener('click', async () => {
+          if (!compressFile) return;
+          compressBtn.disabled = true;
+          compressResult.style.display = 'none';
+          setStatus(compressStatus, '<span class="spinner"></span> Compressing…', 'busy');
+          try {
+            const fd = new FormData();
+            fd.append('file', compressFile, compressFile.name);
+            if (targetToggle.checked) {
+              const mb = parseFloat(targetMb.value);
+              if (!mb || mb <= 0) { setStatus(compressStatus, 'Enter a target size greater than 0.', 'error'); compressBtn.disabled = false; return; }
+              fd.append('target_mb', String(mb));
+            } else {
+              fd.append('level', compressLevel);
+            }
+            const res = await fetch('/api/tools/compress', { method: 'POST', body: fd });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.detail || 'Compression failed.');
+
+            const pct = Math.round((data.ratio || 0) * 100);
+            const targetLine = (data.target_met === false)
+              ? '<div class="tr-note">⚠ Couldn\'t fully reach your target without harming readability — this is the smallest safe result.</div>'
+              : (data.target_met === true ? '<div class="tr-note">✓ Reached your target size.</div>' : '');
+            compressResult.innerHTML =
+              `<div class="tr-big">${pct}% smaller</div>` +
+              `<div class="tr-row"><span>Before: <b>${humanSize(data.original_size)}</b></span>` +
+              `<span>After: <b>${humanSize(data.compressed_size)}</b></span>` +
+              `<span>Mode: <b>${escapeHtml(String(data.level))}</b></span></div>` +
+              (data.note ? `<div class="tr-note">${escapeHtml(data.note)}</div>` : '') +
+              targetLine +
+              `<a class="dl-link" href="${data.download_url}" download>${dlIcon()} Download compressed PDF</a>`;
+            compressResult.style.display = '';
+            setStatus(compressStatus, pct > 0 ? 'Done.' : 'Finished — this PDF was already optimized.', pct > 0 ? 'ok' : '');
+          } catch (err) {
+            setStatus(compressStatus, escapeHtml(err.message || 'Something went wrong.'), 'error');
+          } finally {
+            compressBtn.disabled = false;
+          }
+        });
+
+        // ================= PREFLIGHT =================
+        const preflightDrop = document.getElementById('preflightDrop');
+        const preflightLabel = document.getElementById('preflightLabel');
+        const preflightBtn = document.getElementById('preflightBtn');
+        const preflightStatus = document.getElementById('preflightStatus');
+        const preflightReport = document.getElementById('preflightReport');
+        const preflightFixCard = document.getElementById('preflightFixCard');
+        const preflightFixBtn = document.getElementById('preflightFixBtn');
+        const preflightFixText = document.getElementById('preflightFixText');
+        const preflightFixStatus = document.getElementById('preflightFixStatus');
+        const preflightFixResult = document.getElementById('preflightFixResult');
+        let preflightFile = null;
+        let pfSelectedTarget = 'auto';  // current target selection
+        let pfFillMode = 'fit';         // 'fit' | 'stretch'
+        let pfPageDetails = [];         // per-page data from preflight response
+
+        wireDrop(preflightDrop, (file) => {
+          if (!isPdf(file)) { setStatus(preflightStatus, 'Please choose a PDF file.', 'error'); return; }
+          preflightFile = file;
+          preflightLabel.textContent = file.name;
+          preflightBtn.disabled = false;
+          setStatus(preflightStatus, `Ready to check <strong>${escapeHtml(file.name)}</strong>. Run preflight to activate the panels.`);
+        });
+
+        preflightBtn.addEventListener('click', async () => {
+          if (!preflightFile) return;
+          preflightBtn.disabled = true;
+          setStatus(preflightStatus, '<span class="spinner"></span> Inspecting…', 'busy');
+          try {
+            const fd = new FormData();
+            fd.append('file', preflightFile, preflightFile.name);
+            const res = await fetch('/api/tools/preflight', { method: 'POST', body: fd });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.detail || 'Preflight failed.');
+            renderPreflight(data);
+            maybeShowFixCard(data);
+            setStatus(preflightStatus, 'Inspection complete.', 'ok');
+          } catch (err) {
+            setStatus(preflightStatus, escapeHtml(err.message || 'Something went wrong.'), 'error');
+          } finally {
+            preflightBtn.disabled = false;
+          }
+        });
+
+        function maybeShowFixCard(d) {
+          if (!preflightFixCard) return;
+          pfPageDetails = d.page_details || [];
+
+          // Page count badge
+          const badge = document.getElementById('pfPageCountBadge');
+          if (badge) badge.textContent = d.page_count + ' pages' +
+            (d.mixed_page_sizes ? ' · mixed sizes' : ' · uniform');
+
+          // Warning banner
+          const banner = document.getElementById('pfWarningBanner');
+          const bannerText = document.getElementById('pfWarningText');
+          if (banner && bannerText) {
+            if (d.mixed_page_sizes) {
+              banner.style.display = 'flex';
+              bannerText.textContent = (d.distinct_page_sizes || []).length + ' different page sizes detected';
+            } else {
+              banner.style.display = 'none';
+            }
+          }
+
+          // "Auto" preset dimension hint (shows the majority size)
+          const autoDim = document.getElementById('pfAutoDim');
+          if (autoDim && pfPageDetails.length > 0) {
+            // Most common size
+            const sizeCounts = {};
+            pfPageDetails.forEach(p => {
+              const key = Math.round(p.w_mm) + '×' + Math.round(p.h_mm);
+              sizeCounts[key] = (sizeCounts[key] || 0) + 1;
+            });
+            const majority = Object.entries(sizeCounts).sort((a, b) => b[1] - a[1])[0];
+            autoDim.textContent = majority ? majority[0] + 'mm' : 'Majority size';
+          }
+
+          // Populate table
+          const tbody = document.getElementById('pfTableBody');
+          if (tbody && pfPageDetails.length > 0) {
+            const sizeCounts = {};
+            pfPageDetails.forEach(p => {
+              const key = Math.round(p.w_mm) + 'x' + Math.round(p.h_mm);
+              sizeCounts[key] = (sizeCounts[key] || 0) + 1;
+            });
+            const majoritySize = Object.entries(sizeCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+
+            tbody.innerHTML = pfPageDetails.map(p => {
+              const key = Math.round(p.w_mm) + 'x' + Math.round(p.h_mm);
+              const isMismatch = d.mixed_page_sizes && key !== majoritySize;
+              const cls = isMismatch ? ' class="pf-row-mismatch"' : '';
+              return '<tr' + cls + '>' +
+                '<td class="pf-pg">' + p.page + '</td>' +
+                '<td>' + p.w_mm.toFixed(1) + ' × ' + p.h_mm.toFixed(1) + '</td>' +
+                '<td>' + p.w_px + ' × ' + p.h_px + '</td>' +
+                '<td>' + escapeHtml(p.format) + '</td>' +
+                '<td>' + escapeHtml(p.orientation) + '</td>' +
+                '</tr>';
+            }).join('');
+          }
+
+          // Reset state to defaults
+          pfSelectedTarget = 'auto';
+          pfFillMode = 'fit';
+          document.querySelectorAll('.pf-preset-btn').forEach(b => {
+            b.classList.toggle('active', b.dataset.preset === 'auto');
+          });
+          const fitBtn = document.getElementById('pfFillFit');
+          const stretchBtn = document.getElementById('pfFillStretch');
+          if (fitBtn) fitBtn.classList.add('active');
+          if (stretchBtn) stretchBtn.classList.remove('active');
+          const customW = document.getElementById('pfCustomW');
+          const customH = document.getElementById('pfCustomH');
+          const skipInput = document.getElementById('pfSkipPages');
+          if (customW) customW.value = '';
+          if (customH) customH.value = '';
+          if (skipInput) skipInput.value = '';
+          const customRow = document.getElementById('pfCustomRow');
+          if (customRow) customRow.style.display = 'none';
+          // Collapse table + skip by default
+          const tableWrap = document.getElementById('pfTableWrap');
+          const tableToggle = document.getElementById('pfTableToggle');
+          if (tableWrap) tableWrap.style.display = 'none';
+          if (tableToggle) tableToggle.classList.remove('open');
+          const skipWrap = document.getElementById('pfSkipWrap');
+          const skipToggle = document.getElementById('pfSkipToggle');
+          if (skipWrap) skipWrap.style.display = 'none';
+          if (skipToggle) skipToggle.classList.remove('open');
+
+          preflightFixResult.style.display = 'none';
+          setStatus(preflightFixStatus, 'Pick a size, then resize.', '');
+          preflightFixCard.classList.remove('pf-inactive');
+          // Only auto-scroll on the narrow/stacked layout; on wide screens both
+          // columns are visible side-by-side so scrolling would hide the upload.
+          if (window.matchMedia('(max-width: 900px)').matches) {
+            setTimeout(() => preflightFixCard.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+          }
+        }
+
+        // Collapsible: page table
+        const pfTableToggle = document.getElementById('pfTableToggle');
+        if (pfTableToggle) {
+          pfTableToggle.addEventListener('click', () => {
+            const wrap = document.getElementById('pfTableWrap');
+            const open = wrap.style.display !== 'none';
+            wrap.style.display = open ? 'none' : '';
+            pfTableToggle.classList.toggle('open', !open);
+          });
+        }
+
+        // Collapsible: skip pages
+        const pfSkipToggle = document.getElementById('pfSkipToggle');
+        if (pfSkipToggle) {
+          pfSkipToggle.addEventListener('click', () => {
+            const wrap = document.getElementById('pfSkipWrap');
+            const open = wrap.style.display !== 'none';
+            wrap.style.display = open ? 'none' : '';
+            pfSkipToggle.classList.toggle('open', !open);
+          });
+        }
+
+        // Preset buttons (Auto + sizes + Custom)
+        const pfCustomRow = document.getElementById('pfCustomRow');
+        document.querySelectorAll('.pf-preset-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            document.querySelectorAll('.pf-preset-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            pfSelectedTarget = btn.dataset.preset;
+            // Show custom W×H row only for the Custom preset
+            if (pfCustomRow) {
+              pfCustomRow.style.display = (pfSelectedTarget === 'custom') ? 'flex' : 'none';
+            }
+          });
+        });
+
+        // Fill mode toggle
+        const pfFillFit = document.getElementById('pfFillFit');
+        const pfFillStretch = document.getElementById('pfFillStretch');
+        if (pfFillFit && pfFillStretch) {
+          pfFillFit.addEventListener('click', () => {
+            pfFillMode = 'fit';
+            pfFillFit.classList.add('active');
+            pfFillStretch.classList.remove('active');
+          });
+          pfFillStretch.addEventListener('click', () => {
+            pfFillMode = 'stretch';
+            pfFillStretch.classList.add('active');
+            pfFillFit.classList.remove('active');
+          });
+        }
+
+        if (preflightFixBtn) {
+          preflightFixBtn.addEventListener('click', async () => {
+            if (!preflightFile) return;
+
+            // Determine target
+            let target = pfSelectedTarget;
+            if (target === 'custom') {
+              const w = document.getElementById('pfCustomW').value;
+              const h = document.getElementById('pfCustomH').value;
+              if (w && h && parseFloat(w) > 0 && parseFloat(h) > 0) {
+                target = 'custom:' + w + 'x' + h;
+              } else {
+                setStatus(preflightFixStatus, 'Enter both width and height for a custom size.', 'error');
+                return;
+              }
+            }
+
+            preflightFixBtn.disabled = true;
+            preflightFixResult.style.display = 'none';
+            setStatus(preflightFixStatus, '<span class="spinner"></span> Resizing pages…', 'busy');
+            try {
+              const fd = new FormData();
+              fd.append('file', preflightFile, preflightFile.name);
+              fd.append('target', target);
+              fd.append('fill_mode', pfFillMode);
+              const skipEl = document.getElementById('pfSkipPages');
+              const skipVal = skipEl ? skipEl.value.trim() : '';
+              if (skipVal) fd.append('skip_pages', skipVal);
+
+              const res = await fetch('/api/tools/preflight/fix-page-sizes', { method: 'POST', body: fd });
+              const data = await res.json().catch(() => ({}));
+              if (!res.ok) throw new Error(data.detail || 'Couldn\'t resize pages.');
+              preflightFixResult.innerHTML =
+                '<div class="tr-big">' + data.pages_changed + ' of ' + data.pages_total + ' pages resized</div>' +
+                '<div class="tr-row"><span>New size: <b>' + escapeHtml(data.target_label) + '</b></span></div>' +
+                (data.note ? '<div class="tr-note">' + escapeHtml(data.note) + '</div>' : '') +
+                '<a class="dl-link" href="' + data.download_url + '" download>' + dlIcon() + ' Download resized PDF</a>';
+              preflightFixResult.style.display = '';
+              setStatus(preflightFixStatus, 'Done — every page is now one size.', 'ok');
+            } catch (err) {
+              setStatus(preflightFixStatus, escapeHtml(err.message || 'Something went wrong.'), 'error');
+            } finally {
+              preflightFixBtn.disabled = false;
+            }
+          });
+        }
+
+        function renderPreflight(d) {
+          const verdictText = { pass: 'PASS', warn: 'WARNINGS', fail: 'ISSUES FOUND' }[d.verdict] || '—';
+          const checks = (d.checks || []).map((c) =>
+            `<div class="pf-check"><span class="pf-dot ${c.status}"></span>` +
+            `<div class="pf-check-body"><div class="pf-title">${escapeHtml(c.title)}</div>` +
+            `<div class="pf-detail">${escapeHtml(c.detail)}</div></div></div>`).join('');
+
+          const fonts = (d.fonts || []).map((f) =>
+            `<span class="pf-chip ${f.embedded ? '' : 'bad'}">${escapeHtml(f.name)} · ${escapeHtml(f.type)}${f.embedded ? '' : ' · not embedded'}</span>`).join('') || '<span class="field-hint">No fonts.</span>';
+
+          const imgs = (d.images || []);
+          let imgChips;
+          if (!imgs.length) imgChips = '<span class="field-hint">No raster images.</span>';
+          else imgChips = imgs.slice(0, 40).map((i) =>
+            `<span class="pf-chip ${i.dpi && i.dpi < 150 ? 'bad' : ''}">p${i.page} · ${i.width}×${i.height} · ${i.dpi} DPI · ${escapeHtml(i.colorspace)}</span>`).join('');
+
+          preflightReport.innerHTML =
+            `<span class="pf-verdict ${d.verdict}">${verdictText}</span>` +
+            `<div class="pf-summary">` +
+            `<span><b>${d.page_count}</b> pages</span>` +
+            `<span>Size <b>${humanSize(d.file_size)}</b></span>` +
+            `<span>Encrypted <b>${d.is_encrypted ? 'yes' : 'no'}</b></span>` +
+            `<span>Text layer <b>${d.has_text_layer ? 'yes' : 'no'}</b></span>` +
+            (d.page_sizes && d.page_sizes.length ? `<span>Size <b>${escapeHtml(d.page_sizes[0])}</b></span>` : '') +
+            `</div>` +
+            checks +
+            `<div class="pf-sub"><div class="pf-sub-title">Fonts (${(d.fonts || []).length})</div>${fonts}</div>` +
+            `<div class="pf-sub"><div class="pf-sub-title">Images (${imgs.length})</div>${imgChips}</div>`;
+          preflightReport.classList.remove('pf-inactive');
+          preflightReport.style.display = '';
+        }
+
+        // ================= EDIT (+ OCR) — Acrobat-style editor =================
+        const editDrop = document.getElementById('editDrop');
+        const editDropCard = document.getElementById('editDropCard');
+        const editLabel = document.getElementById('editLabel');
+        const editOcrBtn = document.getElementById('editOcrBtn');
+        const editWorkspace = document.getElementById('editWorkspace');
+        const editActionCard = document.getElementById('editActionCard');
+        const editFileName = document.getElementById('editFileName');
+        const editChangeBtn = document.getElementById('editChangeBtn');
+        const editPropsLabel = document.getElementById('editPropsLabel');
+        const editScroll = document.getElementById('editScroll');
+        const editToolHint = document.getElementById('editToolHint');
+        const editApplyBtn = document.getElementById('editApplyBtn');
+        const editApplyText = document.getElementById('editApplyText');
+        const editStatus = document.getElementById('editStatus');
+        const editResult = document.getElementById('editResult');
+        const editResetBtn = document.getElementById('editResetBtn');
+        const editDirty = document.getElementById('editDirty');
+        const editZoomIn = document.getElementById('editZoomIn');
+        const editZoomOut = document.getElementById('editZoomOut');
+        const editZoomLevel = document.getElementById('editZoomLevel');
+        const editFitWidth = document.getElementById('editFitWidth');
+        const edImageInput = document.getElementById('edImageInput');
+
+        // Property bar controls
+        const editProps = document.getElementById('editProps');
+        const edFont = document.getElementById('edFont');
+        const edSize = document.getElementById('edSize');
+        const edSizeUp = document.getElementById('edSizeUp');
+        const edSizeDown = document.getElementById('edSizeDown');
+        const edBold = document.getElementById('edBold');
+        const edItalic = document.getElementById('edItalic');
+        const edColor = document.getElementById('edColor');
+        const edColorDot = document.getElementById('edColorDot');
+        const edAlignBtns = editWorkspace.querySelectorAll('.ed-align .ed-toggle');
+
+        let editState = null;
+        let editFile = null;
+        let editZoom = 1;          // CSS px per PDF point
+        let editFitMode = 'width'; // 'width' | null(custom)
+        let editTool = 'select';
+        let selectedObj = null;    // currently selected added-object
+        let pendingImage = null;   // dataURL waiting to be placed
+        let objSeq = 1;
+
+        // Style defaults applied to newly created text/link boxes.
+        const editDefaults = { font: '', size: 14, bold: false, italic: false, color: 0x111111, align: 0 };
+
+        const toolHints = {
+          select: 'Drag objects to move them, grab a corner to resize, or press Delete to remove. Click highlighted text to edit it.',
+          edit_text: 'Click any highlighted text run to replace it in place with the original font.',
+          add_text: 'Drag a box anywhere on the page (or just click) to add a new text box, then type.',
+          add_image: 'Pick an image, then drag a box on the page to place it.',
+          add_link: 'Drag a box to create a clickable link, type the label and paste a URL.',
+          erase: 'Drag over anything you want to white-out / cover up.',
+        };
+
+        // ---- colour helpers (packed sRGB int <-> #hex) ----
+        function intToHex(n) {
+          n = (n || 0) & 0xFFFFFF;
+          return '#' + n.toString(16).padStart(6, '0');
+        }
+        function hexToInt(h) {
+          return parseInt((h || '#000000').replace('#', ''), 16) & 0xFFFFFF;
+        }
+
+        wireDrop(editDrop, (file) => {
+          if (!isPdf(file)) { setStatus(editStatus, 'Please choose a PDF file.', 'error'); return; }
+          editFile = file;
+          editLabel.textContent = file.name;
+          openForEdit(file);
+        });
+
+        editOcrBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          let file = editFile;
+          if (!file) {
+            const input = document.createElement('input');
+            input.type = 'file'; input.accept = 'application/pdf,.pdf';
+            input.onchange = () => { if (input.files && input.files[0]) runOcr(input.files[0]); };
+            input.click();
+            return;
+          }
+          runOcr(file);
+        });
+
+        // "Open another" — pick a different PDF without leaving the editor.
+        if (editChangeBtn) {
+          editChangeBtn.addEventListener('click', () => {
+            const input = document.createElement('input');
+            input.type = 'file'; input.accept = 'application/pdf,.pdf';
+            input.onchange = () => {
+              const f = input.files && input.files[0];
+              if (!f) return;
+              if (!isPdf(f)) { setStatus(editStatus, 'Please choose a PDF file.', 'error'); return; }
+              editFile = f;
+              editLabel.textContent = f.name;
+              openForEdit(f);
+            };
+            input.click();
+          });
+        }
+
+        // "Open full editor" — carry the currently-open PDF (if any) into the
+        // full-screen editor by passing its staged job id, so the user doesn't
+        // have to re-upload. Falls back to a blank editor when nothing's open.
+        const openFullEditor = document.getElementById('openFullEditor');
+        if (openFullEditor) {
+          openFullEditor.addEventListener('click', (e) => {
+            let url = '/edit';
+            if (editState && editState.jobId) {
+              url += '?job=' + encodeURIComponent(editState.jobId);
+              const name = (editFile && editFile.name) || (editFileName && editFileName.textContent);
+              if (name) url += '&name=' + encodeURIComponent(name);
+            }
+            openFullEditor.setAttribute('href', url);
+          });
+        }
+
+        async function runOcr(file) {
+          if (!isPdf(file)) { setStatus(editStatus, 'Please choose a PDF file.', 'error'); return; }
+          editFile = file;
+          editLabel.textContent = file.name;
+          editWorkspace.style.display = 'none';
+          editActionCard.style.display = '';
+          editResult.style.display = 'none';
+          setStatus(editStatus, '<span class="spinner"></span> Running OCR (this can take a moment on big scans)…', 'busy');
+          try {
+            const fd = new FormData();
+            fd.append('file', file, file.name);
+            const res = await fetch('/api/tools/edit/ocr', { method: 'POST', body: fd });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.detail || 'OCR failed.');
+            setStatus(editStatus, escapeHtml(data.note || 'OCR complete.'), 'ok');
+            editResult.innerHTML =
+              `<div class="tr-row"><span>OCR pages: <b>${data.pages_ocred}</b></span><span>Languages: <b>${escapeHtml(data.languages)}</b></span></div>` +
+              `<a class="dl-link" href="${data.download_url}" download>${dlIcon()} Download searchable PDF</a>`;
+            editResult.style.display = '';
+            const pdfRes = await fetch(data.download_url);
+            if (pdfRes.ok) {
+              const blob = await pdfRes.blob();
+              const f = new File([blob], (file.name || 'document').replace(/\.pdf$/i, '') + '_ocr.pdf', { type: 'application/pdf' });
+              openForEdit(f);
+            }
+          } catch (err) {
+            setStatus(editStatus, escapeHtml(err.message || 'Something went wrong.'), 'error');
+          }
+        }
+
+        async function openForEdit(file) {
+          editWorkspace.style.display = 'none';
+          editActionCard.style.display = '';
+          editResult.style.display = 'none';
+          editApplyBtn.disabled = true;
+          if (editFileName) editFileName.textContent = (file && file.name) || 'document.pdf';
+          setStatus(editStatus, '<span class="spinner"></span> Opening PDF…', 'busy');
+          try {
+            const fd = new FormData();
+            fd.append('file', file, file.name);
+            const res = await fetch('/api/tools/edit/open', { method: 'POST', body: fd });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.detail || 'Couldn\'t open that PDF.');
+
+            editState = {
+              jobId: data.job_id,
+              pages: data.pages || [],
+              spans: data.spans || [],
+              edits: {},     // { spanId: newText }
+              objects: [],   // added text/image/link/erase objects
+            };
+            selectedObj = null;
+            pendingImage = null;
+            if (!data.has_text || !editState.spans.length) {
+              setStatus(editStatus,
+                'No selectable text found — this looks like a scan. You can still add text, images, links or white-out, or click <strong>Run OCR</strong> to make existing text editable.',
+                'warn');
+            } else {
+              setStatus(editStatus, `Loaded ${editState.spans.length} editable text runs across ${editState.pages.length} page(s). Pick a tool and start editing.`, 'ok');
+            }
+            buildPages();
+            setTool('select');
+            editWorkspace.style.display = '';
+            if (editDropCard) editDropCard.style.display = 'none';
+            // Re-measure now that the workspace (and its right column) is visible,
+            // so fit-to-width uses the real preview width.
+            applyZoom();
+            updateDirty();
+          } catch (err) {
+            setStatus(editStatus, escapeHtml(err.message || 'Something went wrong.'), 'error');
+          }
+        }
+
+        // Build one stacked .ed-page per page (preview image + interactive overlay).
+        function buildPages() {
+          editScroll.innerHTML = '';
+          if (!editState || !editState.pages.length) return;
+          editState.pages.forEach((page) => {
+            const wrap = document.createElement('div');
+            wrap.className = 'ed-page';
+            wrap.dataset.page = page.page;
+
+            const num = document.createElement('span');
+            num.className = 'ed-pnum';
+            num.textContent = 'Page ' + page.page;
+            wrap.appendChild(num);
+
+            const img = document.createElement('img');
+            img.alt = 'Page ' + page.page;
+            img.loading = 'lazy';
+            img.src = page.preview_url;
+            wrap.appendChild(img);
+
+            const overlay = document.createElement('div');
+            overlay.className = 'edit-overlay';
+            overlay.dataset.page = page.page;
+            wireOverlayDrawing(overlay, page);
+            wrap.appendChild(overlay);
+
+            editScroll.appendChild(wrap);
+          });
+          applyZoom();
+        }
+
+        function computeFitWidthZoom() {
+          if (!editState || !editState.pages.length) return 1;
+          const avail = Math.max(200, editScroll.clientWidth - 44);
+          const widest = Math.max.apply(null, editState.pages.map((p) => p.width));
+          return avail / widest;
+        }
+
+        function applyZoom() {
+          if (!editState) return;
+          if (editFitMode === 'width') editZoom = computeFitWidthZoom();
+          editZoom = Math.max(0.2, Math.min(5, editZoom));
+          editState.pages.forEach((page) => {
+            const wrap = editScroll.querySelector('.ed-page[data-page="' + page.page + '"]');
+            if (!wrap) return;
+            wrap.style.width = (page.width * editZoom) + 'px';
+            wrap.style.height = (page.height * editZoom) + 'px';
+            const overlay = wrap.querySelector('.edit-overlay');
+            layoutSpans(page, overlay);
+            renderObjects(page, overlay);
+          });
+          editZoomLevel.textContent = Math.round(editZoom * 100) + '%';
+          editFitWidth.classList.toggle('active', editFitMode === 'width');
+        }
+
+        // ---------- existing text runs (edit_text) ----------
+        function layoutSpans(page, overlay) {
+          if (!overlay) return;
+          overlay.querySelectorAll('.edit-span, .edit-span-input').forEach((n) => n.remove());
+          const scale = editZoom;
+          editState.spans
+            .filter((s) => s.page === page.page)
+            .forEach((s) => {
+              const [x0, y0, x1, y1] = s.bbox;
+              const div = document.createElement('div');
+              div.className = 'edit-span' + (editState.edits[s.id] !== undefined ? ' changed' : '');
+              div.style.left = (x0 * scale) + 'px';
+              div.style.top = (y0 * scale) + 'px';
+              div.style.width = Math.max(6, (x1 - x0) * scale) + 'px';
+              div.style.height = Math.max(6, (y1 - y0) * scale) + 'px';
+              div.title = 'Click to edit text';
+              div.addEventListener('click', (e) => { e.stopPropagation(); beginEditSpan(s, div, overlay, scale); });
+              overlay.appendChild(div);
+            });
+        }
+
+        function beginEditSpan(span, div, overlay, scale) {
+          editScroll.querySelectorAll('.edit-span-input').forEach((i) => i.remove());
+          editScroll.querySelectorAll('.edit-span.editing').forEach((d) => d.classList.remove('editing'));
+          div.classList.add('editing');
+
+          const [x0, y0, x1, y1] = span.bbox;
+          const input = document.createElement('input');
+          input.type = 'text';
+          input.className = 'edit-span-input';
+          input.value = editState.edits[span.id] !== undefined ? editState.edits[span.id] : span.text;
+          input.style.left = (x0 * scale) + 'px';
+          input.style.top = (y0 * scale) + 'px';
+          input.style.width = Math.max(40, (x1 - x0) * scale + 20) + 'px';
+          input.style.height = Math.max(18, (y1 - y0) * scale + 4) + 'px';
+          input.style.fontSize = Math.max(9, (y1 - y0) * scale * 0.8) + 'px';
+          overlay.appendChild(input);
+          input.focus();
+          input.select();
+
+          const commit = () => {
+            const val = input.value;
+            if (val !== span.text) editState.edits[span.id] = val;
+            else delete editState.edits[span.id];
+            input.remove();
+            div.classList.remove('editing');
+            div.classList.toggle('changed', editState.edits[span.id] !== undefined);
+            updateDirty();
+          };
+          input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); commit(); }
+            else if (e.key === 'Escape') { input.remove(); div.classList.remove('editing'); }
+          });
+          input.addEventListener('blur', commit);
+        }
+
+        // ---------- added objects (add_text / add_image / add_link / erase) ----------
+        function renderObjects(page, overlay) {
+          if (!overlay) return;
+          overlay.querySelectorAll('.ed-obj').forEach((n) => n.remove());
+          const scale = editZoom;
+          editState.objects
+            .filter((o) => o.page === page.page)
+            .forEach((o) => overlay.appendChild(buildObjectEl(o, scale)));
+        }
+
+        function positionObjEl(el, o, scale) {
+          const [x0, y0, x1, y1] = o.bbox;
+          el.style.left = (x0 * scale) + 'px';
+          el.style.top = (y0 * scale) + 'px';
+          el.style.width = Math.max(8, (x1 - x0) * scale) + 'px';
+          el.style.height = Math.max(8, (y1 - y0) * scale) + 'px';
+          const body = el.querySelector('.ed-obj-body');
+          if (body && (o.type === 'add_text' || o.type === 'add_link')) {
+            body.style.fontSize = Math.max(6, (o.size || 12) * scale) + 'px';
+            body.style.fontWeight = o.bold ? '700' : '400';
+            body.style.fontStyle = o.italic ? 'italic' : 'normal';
+            body.style.textAlign = ['left', 'center', 'right'][o.align || 0];
+            if (o.type === 'add_text') body.style.color = intToHex(o.color);
+          }
+        }
+
+        function buildObjectEl(o, scale) {
+          const el = document.createElement('div');
+          el.className = 'ed-obj' + (selectedObj === o ? ' selected' : '');
+          el.dataset.type = o.type;
+          el.dataset.id = o.id;
+          positionObjEl(el, o, scale);
+
+          // move bar + delete
+          const move = document.createElement('div');
+          move.className = 'ed-obj-move';
+          move.innerHTML = '<span>move</span><button type="button" class="od-del" title="Delete">✕</button>';
+          el.appendChild(move);
+
+          // body
+          const body = document.createElement('div');
+          body.className = 'ed-obj-body';
+          if (o.type === 'add_image') {
+            const im = document.createElement('img');
+            im.src = o.image_b64;
+            body.appendChild(im);
+          } else if (o.type === 'erase') {
+            // plain white box
+          } else {
+            body.contentEditable = 'true';
+            body.spellcheck = false;
+            body.textContent = o.text || '';
+            if (!o.text) { body.classList.add('ed-obj-empty'); body.dataset.placeholder = o.type === 'add_link' ? 'Link text' : 'Type here'; }
+            body.addEventListener('input', () => {
+              o.text = body.innerText.replace(/\n$/, '');
+              body.classList.toggle('ed-obj-empty', !o.text);
+            });
+            body.addEventListener('focus', () => selectObject(o));
+            body.addEventListener('pointerdown', (e) => e.stopPropagation());
+          }
+          el.appendChild(body);
+
+          // link url bar
+          if (o.type === 'add_link') {
+            const lb = document.createElement('div');
+            lb.className = 'ed-linkbar';
+            lb.innerHTML = '<label>URL</label>';
+            const urlInput = document.createElement('input');
+            urlInput.type = 'url';
+            urlInput.placeholder = 'https://example.com';
+            urlInput.value = o.url || '';
+            urlInput.addEventListener('input', () => { o.url = urlInput.value.trim(); });
+            urlInput.addEventListener('pointerdown', (e) => e.stopPropagation());
+            lb.appendChild(urlInput);
+            el.appendChild(lb);
+          }
+
+          // resize handle
+          const handle = document.createElement('div');
+          handle.className = 'ed-obj-handle';
+          el.appendChild(handle);
+
+          // selection on click
+          el.addEventListener('pointerdown', (e) => {
+            if (e.target.closest('.od-del') || e.target.closest('.ed-obj-handle') || e.target.closest('.ed-obj-move')) return;
+            selectObject(o);
+          });
+          move.querySelector('.od-del').addEventListener('click', (e) => { e.stopPropagation(); deleteObject(o); });
+          move.addEventListener('pointerdown', (e) => startDragObject(e, o, el, 'move'));
+          handle.addEventListener('pointerdown', (e) => startDragObject(e, o, el, 'resize'));
+
+          return el;
+        }
+
+        function selectObject(o) {
+          selectedObj = o;
+          editScroll.querySelectorAll('.ed-obj').forEach((el) => el.classList.toggle('selected', el.dataset.id === o.id));
+          syncPropsFromObject(o);
+          updatePropsVisibility();
+        }
+        function deselectAll() {
+          selectedObj = null;
+          editScroll.querySelectorAll('.ed-obj.selected').forEach((el) => el.classList.remove('selected'));
+          updatePropsVisibility();
+        }
+        function deleteObject(o) {
+          editState.objects = editState.objects.filter((x) => x !== o);
+          if (selectedObj === o) selectedObj = null;
+          applyZoom();
+          updateDirty();
+        }
+
+        // Drag-to-move / resize a selected object (pointer-based).
+        function startDragObject(e, o, el, mode) {
+          e.preventDefault();
+          e.stopPropagation();
+          selectObject(o);
+          const scale = editZoom;
+          const startX = e.clientX, startY = e.clientY;
+          const orig = o.bbox.slice();
+          const page = editState.pages.find((p) => p.page === o.page);
+          const move = (ev) => {
+            const dx = (ev.clientX - startX) / scale;
+            const dy = (ev.clientY - startY) / scale;
+            if (mode === 'move') {
+              let nx0 = orig[0] + dx, ny0 = orig[1] + dy;
+              const w = orig[2] - orig[0], h = orig[3] - orig[1];
+              nx0 = Math.max(0, Math.min(page.width - w, nx0));
+              ny0 = Math.max(0, Math.min(page.height - h, ny0));
+              o.bbox = [nx0, ny0, nx0 + w, ny0 + h];
+            } else {
+              const nx1 = Math.max(orig[0] + 8, Math.min(page.width, orig[2] + dx));
+              const ny1 = Math.max(orig[1] + 8, Math.min(page.height, orig[3] + dy));
+              o.bbox = [orig[0], orig[1], nx1, ny1];
+            }
+            positionObjEl(el, o, scale);
+          };
+          const up = () => {
+            document.removeEventListener('pointermove', move);
+            document.removeEventListener('pointerup', up);
+          };
+          document.addEventListener('pointermove', move);
+          document.addEventListener('pointerup', up);
+        }
+
+        // Marquee drawing on an overlay for the create-tools.
+        function wireOverlayDrawing(overlay, page) {
+          overlay.addEventListener('pointerdown', (e) => {
+            // text tools handle their own spans; clicking empty space deselects.
+            if (editTool === 'select' || editTool === 'edit_text') {
+              if (!e.target.closest('.ed-obj') && !e.target.closest('.edit-span')) deselectAll();
+              return;
+            }
+            if (e.target.closest('.ed-obj')) return; // don't draw over an object
+            e.preventDefault();
+            const scale = editZoom;
+            const rect = overlay.getBoundingClientRect();
+            const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+
+            const marquee = document.createElement('div');
+            marquee.className = 'ed-marquee';
+            overlay.appendChild(marquee);
+            let cx = sx, cy = sy;
+
+            const move = (ev) => {
+              cx = ev.clientX - rect.left; cy = ev.clientY - rect.top;
+              const x = Math.min(sx, cx), y = Math.min(sy, cy);
+              marquee.style.left = x + 'px';
+              marquee.style.top = y + 'px';
+              marquee.style.width = Math.abs(cx - sx) + 'px';
+              marquee.style.height = Math.abs(cy - sy) + 'px';
+            };
+            const up = () => {
+              document.removeEventListener('pointermove', move);
+              document.removeEventListener('pointerup', up);
+              marquee.remove();
+              let x = Math.min(sx, cx), y = Math.min(sy, cy);
+              let w = Math.abs(cx - sx), h = Math.abs(cy - sy);
+              // A plain click (no real drag) gets a sensible default box.
+              if (w < 6 || h < 6) {
+                if (editTool === 'add_text' || editTool === 'add_link') { w = 180; h = 26; }
+                else if (editTool === 'erase') { w = 120; h = 24; }
+                else { return; } // image needs a real box
+              }
+              const bbox = [x / scale, y / scale, (x + w) / scale, (y + h) / scale];
+              createObject(editTool, page.page, bbox);
+            };
+            document.addEventListener('pointermove', move);
+            document.addEventListener('pointerup', up);
+          });
+        }
+
+        function createObject(type, page, bbox) {
+          if (type === 'add_image') {
+            if (!pendingImage) { setStatus(editStatus, 'Pick an image first, then drag a box to place it.', 'warn'); return; }
+          }
+          const o = {
+            id: 'obj' + (objSeq++),
+            type, page, bbox,
+            text: '',
+            font: editDefaults.font,
+            size: editDefaults.size,
+            color: editDefaults.color,
+            bold: editDefaults.bold,
+            italic: editDefaults.italic,
+            align: editDefaults.align,
+            url: '',
+            image_b64: type === 'add_image' ? pendingImage : null,
+          };
+          editState.objects.push(o);
+          if (type === 'add_image') { pendingImage = null; setTool('select'); }
+          applyZoom();
+          selectObject(o);
+          // focus the new text box so the user can type immediately
+          if (type === 'add_text' || type === 'add_link') {
+            const el = editScroll.querySelector('.ed-obj[data-id="' + o.id + '"] .ed-obj-body');
+            if (el) { el.focus(); }
+          }
+          updateDirty();
+        }
+
+        // ---------- tool selection ----------
+        const editToolButtons = editWorkspace.querySelectorAll('.ed-tool');
+        function setTool(tool) {
+          editTool = tool;
+          editToolButtons.forEach((b) => b.classList.toggle('active', b.dataset.tool === tool));
+          ['select', 'edit_text', 'add_text', 'add_image', 'add_link', 'erase'].forEach((t) =>
+            editScroll.classList.toggle('tool-' + t, t === tool));
+          if (editToolHint) editToolHint.textContent = toolHints[tool] || toolHints.select;
+          updatePropsVisibility();
+          if (tool === 'add_image') {
+            // open file picker immediately; placement happens on the next drag.
+            edImageInput.value = '';
+            edImageInput.click();
+          }
+        }
+        // The text property bar only matters for text/link tools or when a text
+        // object is selected — hide it otherwise (Acrobat-style contextual bar).
+        function updatePropsVisibility() {
+          if (!editProps) return;
+          const textTool = editTool === 'add_text' || editTool === 'add_link';
+          const textSel = selectedObj && (selectedObj.type === 'add_text' || selectedObj.type === 'add_link');
+          const show = (textTool || textSel) ? '' : 'none';
+          editProps.style.display = show;
+          if (editPropsLabel) editPropsLabel.style.display = show;
+        }
+        editToolButtons.forEach((btn) => {
+          btn.addEventListener('click', () => setTool(btn.dataset.tool));
+        });
+
+        edImageInput.addEventListener('change', () => {
+          const f = edImageInput.files && edImageInput.files[0];
+          if (!f) { setTool('select'); return; }
+          const reader = new FileReader();
+          reader.onload = () => {
+            pendingImage = reader.result;
+            setStatus(editStatus, 'Image ready — now drag a box on the page to place it.', 'ok');
+          };
+          reader.readAsDataURL(f);
+        });
+
+        // ---------- property bar ----------
+        function syncPropsFromObject(o) {
+          if (!o || (o.type !== 'add_text' && o.type !== 'add_link')) return;
+          if (edFont) edFont.value = o.font || '';
+          if (edSize) edSize.value = Math.round(o.size || 12);
+          if (edBold) edBold.classList.toggle('active', !!o.bold);
+          if (edItalic) edItalic.classList.toggle('active', !!o.italic);
+          if (edColor) edColor.value = intToHex(o.color);
+          if (edColorDot) edColorDot.style.background = intToHex(o.color);
+          edAlignBtns.forEach((b) => b.classList.toggle('active', String(o.align || 0) === b.dataset.align));
+        }
+        function applyProp(fn) {
+          if (selectedObj && (selectedObj.type === 'add_text' || selectedObj.type === 'add_link')) {
+            fn(selectedObj);
+            // Update just the selected element's geometry/style in place so the
+            // colour picker / size stepper feel instant (no full re-render).
+            const o = selectedObj;
+            const el = editScroll.querySelector('.ed-obj[data-id="' + o.id + '"]');
+            if (el) positionObjEl(el, o, editZoom);
+          }
+        }
+        if (edFont) edFont.addEventListener('change', () => { editDefaults.font = edFont.value; applyProp((o) => o.font = edFont.value); });
+        function setSize(v) {
+          v = Math.max(4, Math.min(200, v));
+          if (edSize) edSize.value = v;
+          editDefaults.size = v;
+          applyProp((o) => o.size = v);
+        }
+        if (edSize) edSize.addEventListener('change', () => setSize(parseInt(edSize.value, 10) || 14));
+        if (edSizeUp) edSizeUp.addEventListener('click', () => setSize((parseInt(edSize.value, 10) || 14) + 1));
+        if (edSizeDown) edSizeDown.addEventListener('click', () => setSize((parseInt(edSize.value, 10) || 14) - 1));
+        if (edBold) edBold.addEventListener('click', () => { const on = !edBold.classList.contains('active'); edBold.classList.toggle('active', on); editDefaults.bold = on; applyProp((o) => o.bold = on); });
+        if (edItalic) edItalic.addEventListener('click', () => { const on = !edItalic.classList.contains('active'); edItalic.classList.toggle('active', on); editDefaults.italic = on; applyProp((o) => o.italic = on); });
+        if (edColor) edColor.addEventListener('input', () => { const v = hexToInt(edColor.value); if (edColorDot) edColorDot.style.background = edColor.value; editDefaults.color = v; applyProp((o) => o.color = v); });
+        edAlignBtns.forEach((b) => b.addEventListener('click', () => {
+          edAlignBtns.forEach((x) => x.classList.remove('active'));
+          b.classList.add('active');
+          const a = parseInt(b.dataset.align, 10) || 0;
+          editDefaults.align = a;
+          applyProp((o) => o.align = a);
+        }));
+
+        // Delete key removes the selected object.
+        document.addEventListener('keydown', (e) => {
+          if (!editState || editWorkspace.style.display === 'none') return;
+          if ((e.key === 'Delete' || e.key === 'Backspace') && selectedObj) {
+            const tag = (document.activeElement && document.activeElement.tagName) || '';
+            const editable = document.activeElement && document.activeElement.isContentEditable;
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || editable) return; // typing
+            e.preventDefault();
+            deleteObject(selectedObj);
+          }
+        });
+
+        function updateDirty() {
+          const nEdits = editState ? Object.keys(editState.edits).length : 0;
+          const nObjs = editState ? editState.objects.length : 0;
+          const n = nEdits + nObjs;
+          editApplyBtn.disabled = n === 0;
+          editApplyText.textContent = n > 0 ? `Save & Download (${n})` : 'Save & Download';
+          editDirty.style.display = n > 0 ? '' : 'none';
+          editDirty.textContent = '● ' + n + ' unsaved change' + (n === 1 ? '' : 's');
+        }
+
+        editResetBtn.addEventListener('click', () => {
+          if (!editState) return;
+          editState.edits = {};
+          editState.objects = [];
+          selectedObj = null;
+          updateDirty();
+          applyZoom();
+          setStatus(editStatus, 'All edits cleared.', '');
+        });
+
+        // ---- Zoom controls ----
+        editZoomIn.addEventListener('click', () => { editFitMode = null; editZoom *= 1.2; applyZoom(); });
+        editZoomOut.addEventListener('click', () => { editFitMode = null; editZoom /= 1.2; applyZoom(); });
+        editFitWidth.addEventListener('click', () => { editFitMode = 'width'; applyZoom(); });
+
+        let editResizeTimer = null;
+        window.addEventListener('resize', () => {
+          if (!editState || editWorkspace.style.display === 'none') return;
+          clearTimeout(editResizeTimer);
+          editResizeTimer = setTimeout(() => applyZoom(), 120);
+        });
+
+        function buildOperations() {
+          const ops = [];
+          // 1) in-place text-run replacements
+          Object.keys(editState.edits).forEach((id) => {
+            const span = editState.spans.find((s) => s.id === id);
+            if (!span) return;
+            ops.push({
+              type: 'edit_text', page: span.page, bbox: span.bbox,
+              text: editState.edits[id], font: span.font, size: span.size, color: span.color,
+            });
+          });
+          // 2) added objects
+          editState.objects.forEach((o) => {
+            const base = { type: o.type, page: o.page, bbox: o.bbox };
+            if (o.type === 'add_text') Object.assign(base, { text: o.text || '', font: o.font || '', size: o.size, color: o.color, bold: o.bold, italic: o.italic, align: o.align });
+            else if (o.type === 'add_link') Object.assign(base, { text: o.text || '', url: o.url || '', size: o.size, color: o.color, align: o.align });
+            else if (o.type === 'add_image') Object.assign(base, { image_b64: o.image_b64 });
+            else if (o.type === 'erase') Object.assign(base, { fill: 0xFFFFFF });
+            // skip empty text/link boxes (nothing to draw and no url)
+            if ((o.type === 'add_text') && !o.text) return;
+            if ((o.type === 'add_link') && !o.text && !o.url) return;
+            if ((o.type === 'add_image') && !o.image_b64) return;
+            ops.push(base);
+          });
+          return ops;
+        }
+
+        editApplyBtn.addEventListener('click', async () => {
+          if (!editState) return;
+          const operations = buildOperations();
+          if (!operations.length) { setStatus(editStatus, 'Nothing to save yet — make an edit first.', 'warn'); return; }
+          editApplyBtn.disabled = true;
+          editResult.style.display = 'none';
+          setStatus(editStatus, '<span class="spinner"></span> Saving your edits with the original fonts…', 'busy');
+          try {
+            const res = await fetch('/api/tools/edit/apply', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ job_id: editState.jobId, operations }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.detail || 'Couldn\'t apply edits.');
+            editResult.innerHTML =
+              `<div class="tr-row"><span>Edits applied: <b>${data.edits_applied}</b></span></div>` +
+              `<a class="dl-link" href="${data.download_url}" download>${dlIcon()} Download edited PDF</a>`;
+            editResult.style.display = '';
+            setStatus(editStatus, 'Saved. Download your edited PDF below.', 'ok');
+          } catch (err) {
+            setStatus(editStatus, escapeHtml(err.message || 'Something went wrong.'), 'error');
+          } finally {
+            editApplyBtn.disabled = false;
+          }
+        });
+      })();
 
     </script>
   </body>

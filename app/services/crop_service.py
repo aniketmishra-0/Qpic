@@ -89,23 +89,17 @@ def _median_line_gap(row_has) -> "int | None":
 
     import numpy as np
 
-    runs_blank: list[int] = []
-    n = len(row_has)
-    i = 0
-    seen_ink = False
-    blank = 0
-    for i in range(n):
-        if row_has[i]:
-            if seen_ink and blank > 0:
-                runs_blank.append(blank)
-            seen_ink = True
-            blank = 0
-        else:
-            if seen_ink:
-                blank += 1
-    if not runs_blank:
+    # Interior blank runs are the gaps strictly between consecutive inked rows.
+    # Leading/trailing whitespace is ignored (it has no inked row on one side),
+    # matching the original row-by-row scan — but in a single vectorized pass.
+    inked = np.flatnonzero(np.asarray(row_has))
+    if inked.size < 2:
         return None
-    return int(np.median(np.asarray(runs_blank)))
+    gaps = np.diff(inked) - 1
+    gaps = gaps[gaps > 0]
+    if gaps.size == 0:
+        return None
+    return int(np.median(gaps))
 
 
 def _stitch_with_left_pads(crops: list[Image.Image], pads_px: list[int]) -> Image.Image:

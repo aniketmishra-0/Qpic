@@ -355,3 +355,84 @@ def test_fully_covered_crops_not_flagged_by_coverage() -> None:
     }
     items = build_analyzed_items(detected, page_lines)
     assert all(not it.flagged for it in items)
+
+
+def test_uncovered_head_crop_is_flagged() -> None:
+    # The cross-page-spill case from the screenshots: Q19b's page-2 crop was
+    # detected starting too low (at 28%), stranding the question's opening line
+    # "2. The right to health also includes access to essential medicines."
+    # (~12%..20%) above it with no box over it. The below-only coverage check
+    # can't see text *above* a crop, so without the head check this stays silent.
+    detected = [
+        DetectedQuestion(
+            q_num="19",
+            segments=[QuestionSegment(page=4, y_start_pct=28.0, y_end_pct=55.0, x_start_pct=0.0, x_end_pct=48.0)],
+        ),
+    ]
+    page_lines = {
+        4: [
+            (12.0, 15.0, 5.0, 45.0),   # uncovered - Q19's stranded head
+            (16.0, 19.0, 5.0, 45.0),   # uncovered - Q19's stranded head
+            (30.0, 33.0, 5.0, 45.0),   # inside Q19's crop
+            (40.0, 43.0, 5.0, 45.0),   # inside Q19's crop
+        ],
+    }
+    items = build_analyzed_items(detected, page_lines)
+    q19 = next(it for it in items if it.q_num == "19")
+    assert q19.flagged is True
+    assert "above" in (q19.flag_reason or "").lower()
+
+    notes = build_review_notes(detected, "text", None, page_lines)
+    assert any(n.kind == "incomplete" and n.q_num == "19" for n in notes)
+
+
+def test_crop_with_real_crop_above_not_flagged_as_head() -> None:
+    # When another crop sits above in the same column, the strip above belongs
+    # to that crop (or the inter-crop gap), not to a lost head of this one.
+    detected = [
+        DetectedQuestion(
+            q_num="1", segments=[QuestionSegment(page=1, y_start_pct=10.0, y_end_pct=40.0)],
+        ),
+        DetectedQuestion(
+            q_num="2", segments=[QuestionSegment(page=1, y_start_pct=45.0, y_end_pct=85.0)],
+        ),
+    ]
+    page_lines = {
+        1: [
+            (12.0, 15.0, 5.0, 95.0),  # inside Q1
+            (36.0, 39.0, 5.0, 95.0),  # inside Q1
+            (48.0, 51.0, 5.0, 95.0),  # inside Q2
+            (80.0, 83.0, 5.0, 95.0),  # inside Q2
+        ],
+    }
+    items = build_analyzed_items(detected, page_lines)
+    assert all(not it.flagged for it in items)
+
+
+def test_orphan_content_page_is_noted() -> None:
+    # A whole question was missed: page 2 has a tall block of body text that no
+    # crop covers and that isn't adjacent to any crop. There's no item to flag,
+    # so the only signal is a page-level note.
+    detected = [
+        DetectedQuestion(
+            q_num="1", segments=[QuestionSegment(page=1, y_start_pct=10.0, y_end_pct=80.0)],
+        ),
+        DetectedQuestion(
+            q_num="2", segments=[QuestionSegment(page=3, y_start_pct=10.0, y_end_pct=80.0)],
+        ),
+    ]
+    page_lines = {
+        1: [(12.0, 15.0, 5.0, 95.0), (70.0, 73.0, 5.0, 95.0)],
+        2: [
+            (30.0, 34.0, 5.0, 95.0),  # orphan - no crop on page 2 at all
+            (38.0, 42.0, 5.0, 95.0),
+            (46.0, 50.0, 5.0, 95.0),
+        ],
+        3: [(12.0, 15.0, 5.0, 95.0), (70.0, 73.0, 5.0, 95.0)],
+    }
+    notes = build_review_notes(detected, "text", None, page_lines)
+    assert any(
+        n.kind == "incomplete" and n.page == 2 and "missed" in n.message.lower()
+        for n in notes
+    )
+
